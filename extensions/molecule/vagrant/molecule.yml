@@ -1,6 +1,7 @@
 ---
-# Vagrant + libvirt scenario: the node on a real VM, before a release (docs/design.md,
-# "Supported platforms and tests"). Runs locally (`make test-vm`; needs libvirt + KVM).
+# Vagrant + libvirt scenario, before a release (docs/design.md, "Supported platforms and
+# tests"): the cluster scenario - three storage nodes and a gateway, the same playbooks and
+# test variables - on real VMs. Runs locally (`make test-vm`; needs libvirt + KVM).
 #
 # molecule-plugins#301: run this via `make test-vm`, which exports ANSIBLE_LIBRARY /
 # ANSIBLE_FILTER_PLUGINS so Ansible can find the vagrant module/filter. A bare
@@ -14,23 +15,39 @@ driver:
     name: libvirt
 
 platforms:
-  - name: garage-node-vm
+  - name: garage-cluster-1
     box: debian/trixie64
     memory: 1024
     cpus: 1
-    groups:
-      - garage_nodes
+    groups: [garage_nodes]
+  - name: garage-cluster-2
+    box: debian/trixie64
+    memory: 1024
+    cpus: 1
+    groups: [garage_nodes]
+  - name: garage-cluster-3
+    box: debian/trixie64
+    memory: 1024
+    cpus: 1
+    groups: [garage_nodes]
+  - name: garage-cluster-gw
+    box: debian/trixie64
+    memory: 1024
+    cpus: 1
+    groups: [garage_nodes]
 
 provisioner:
   name: ansible
-  # The docker scenario's playbooks and test variables (the same linked inventory). The
-  # vagrant driver supplies ansible_user itself.
+  # The cluster scenario's playbooks and test variables. The vagrant driver supplies
+  # ansible_user itself; these VMs aren't docker_instances, so become stays on.
   playbooks:
-    converge: ../default/converge.yml
-    verify: ../default/verify.yml
+    converge: ../cluster/converge.yml
+    side_effect: ../cluster/side_effect.yml
+    verify: ../cluster/verify.yml
   inventory:
     links:
-      group_vars: ../default/inventory/group_vars/
+      group_vars: ../cluster/inventory/group_vars/
+      host_vars: ../cluster/inventory/host_vars/
 
 verifier:
   name: ansible
@@ -44,5 +61,6 @@ scenario:
     - create
     - converge
     - idempotence
+    - side_effect
     - verify
     - destroy

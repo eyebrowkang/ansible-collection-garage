@@ -11,8 +11,8 @@ help:
 	@echo "converge  - molecule converge (one node, docker)"
 	@echo "check     - molecule converge --check (dry-run, on converged instances)"
 	@echo "destroy   - molecule destroy (one node, docker)"
-	@echo "test-vm    - molecule test (one node, vagrant; needs 'uv sync --group vagrant' + libvirt/KVM)"
-	@echo "destroy-vm - molecule destroy (one node, vagrant)"
+	@echo "test-vm    - molecule test (the cluster on four VMs; needs 'uv sync --group vagrant' + libvirt/KVM)"
+	@echo "destroy-vm - molecule destroy (the cluster on VMs)"
 
 install:
 	uv sync
