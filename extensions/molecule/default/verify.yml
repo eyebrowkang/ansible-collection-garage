@@ -1,58 +1,79 @@
 ---
-# Verify the role's effects from the OUTSIDE — assert the target's REAL state (files on
-# disk, the service state systemd reports, a listening port), not a module's own
-# "changed"/"ok" report.
-# A verify that re-runs the role's modules and trusts their return value is circular; read
-# the actual state with stat/slurp/command/service_facts and assert on that.
-# See docs/molecule-testing.md for the full pattern (and testinfra as an alternative).
+# Checks the node from the host's real state: what the binary reports, what systemd
+# reports, the files on disk, and Garage answering on its ports.
 - name: Verify
   hosts: all
   become: true
   tasks:
-    # The path is the test variable from the linked inventory (inventory/group_vars/).
-    - name: Stat the marker file the role manages (real on-disk state)
-      ansible.builtin.stat:
-        path: "{{ garage_example_marker_path }}"
-      register: marker
+    - name: Ask the binary for its version
+      ansible.builtin.command: /usr/local/bin/garage --version
+      register: verify_version
+      changed_when: false
 
-    - name: Assert the role created the marker with the expected mode
+    - name: Check the version
+      ansible.builtin.assert:
+        that: (verify_version.stdout | eyebrowkang.garage.garage_version) == garage_node_version
+        fail_msg: "Expected Garage {{ garage_node_version }}, the binary reports: {{ verify_version.stdout }}"
+
+    - name: Read the services as systemd reports them
+      ansible.builtin.service_facts:
+
+    - name: Check garage.service runs and is enabled
       ansible.builtin.assert:
         that:
-          - marker.stat.exists
-          - marker.stat.mode == "0644"
-        fail_msg: "marker missing or wrong mode — the example role did not converge as expected"
-        success_msg: "marker present"
+          - ansible_facts.services['garage.service'].state == 'running'
+          - ansible_facts.services['garage.service'].status == 'enabled'
 
-    - name: Read the marker's content from the target
+    - name: Read garage.toml
       ansible.builtin.slurp:
-        src: "{{ garage_example_marker_path }}"
-      register: marker_blob
+        src: /etc/garage/garage.toml
+      register: verify_config
 
-    - name: Assert the content is what the role wrote
+    - name: Check garage.toml is the settings, the defaults and the secret files
+      vars:
+        written: "{{ verify_config.content | b64decode | eyebrowkang.garage.from_toml }}"
       ansible.builtin.assert:
         that:
-          - "'eyebrowkang.garage.example applied' in (marker_blob.content | b64decode)"
-        fail_msg: "marker content unexpected"
-        success_msg: "eyebrowkang.garage.example verified from the target's real state"
+          - written.metadata_dir == garage_node_settings.metadata_dir
+          - written.replication_factor == 1
+          - written.rpc_bind_addr == '[::]:3901'
+          - written.rpc_secret_file == '/etc/garage/secrets/rpc_secret'
+          - written.rpc_secret is not defined
+          - written.s3_api.s3_region == 'garage'
+          - written.s3_api.public_endpoint == 'http://s3.garage.test'
+          - written.admin.admin_token_file == '/etc/garage/secrets/admin_token'
+          - written.admin.metrics_token_file is not defined
+        fail_msg: "garage.toml is not what was asked for: {{ written }}"
 
-    # When your role does more, assert ground truth — copy & adapt (each reads the SYSTEM,
-    # never a module's self-report). Reach for `command` only where no module reads it:
-    #
-    #   - name: Read the services as systemd reports them (not "the service module returned ok")
-    #     ansible.builtin.service_facts:
-    #
-    #   - name: Assert the service really runs and is enabled
-    #     ansible.builtin.assert:
-    #       that:
-    #         - "'foo.service' in ansible_facts.services"
-    #         - ansible_facts.services['foo.service'].state == 'running'
-    #         - ansible_facts.services['foo.service'].status == 'enabled'
-    #
-    #   - name: Port actually listening
-    #     ansible.builtin.wait_for: { port: 8080, timeout: 5 }
-    #
-    #   - name: Binary reports the expected version
-    #     ansible.builtin.command: foo --version
-    #     changed_when: false
-    #     register: foo_v
-    #     failed_when: "'1.2.' not in foo_v.stdout"
+    - name: Read the secret files
+      ansible.builtin.stat:
+        path: "/etc/garage/secrets/{{ item }}"
+      loop: [rpc_secret, admin_token, metrics_token]
+      register: verify_secrets
+
+    - name: Check the secret files are the garage user's alone
+      vars:
+        by_name: "{{ dict(verify_secrets.results | map(attribute='item') | zip(verify_secrets.results | map(attribute='stat'))) }}"
+      ansible.builtin.assert:
+        that:
+          - by_name.rpc_secret.pw_name == 'garage'
+          - by_name.rpc_secret.mode == '0600'
+          - by_name.admin_token.mode == '0600'
+          - not by_name.metrics_token.exists
+
+    - name: Ask Garage for the node's status over RPC
+      ansible.builtin.command: /usr/local/bin/garage --config /etc/garage/garage.toml status
+      register: verify_status
+      changed_when: false
+
+    - name: Ask the admin API for the node, with the token
+      ansible.builtin.uri:
+        url: http://localhost:3903/v2/GetNodeInfo?node=self
+        headers:
+          Authorization: Bearer {{ garage_node_admin_token }}
+      register: verify_node_info
+
+    - name: Check the S3 API answers
+      ansible.builtin.uri:
+        url: http://localhost:3900/
+        status_code: [403]

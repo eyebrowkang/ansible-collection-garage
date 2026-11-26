@@ -1,0 +1,14 @@
+---
+# What the host must provide (docs/design.md, "Supported platforms and tests"): a Python
+# ansible-core can use. Enterprise Linux 8's platform Python is 3.6, too old: install
+# python3.12, which interpreter discovery then prefers. Raw: there's no usable Python yet.
+- name: Prepare
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Give Enterprise Linux 8 a Python ansible-core can use
+      ansible.builtin.raw: >-
+        if grep -qE 'release 8(\.|$| )' /etc/redhat-release 2>/dev/null && ! command -v python3.12 >/dev/null;
+        then dnf -y -q install python3.12 && echo installed; fi
+      register: prepare_python
+      changed_when: "'installed' in prepare_python.stdout"

@@ -1,0 +1,20 @@
+---
+# tasks for the eyebrowkang.garage.node role
+- name: Run preflight checks
+  ansible.builtin.include_tasks: preflight.yml
+
+- name: Remove the node
+  ansible.builtin.include_tasks: absent.yml
+  when: garage_node_state == 'absent'
+
+- name: Install, configure and start the node
+  when: garage_node_state == 'present'
+  block:
+    - name: Install the binary
+      ansible.builtin.include_tasks: binary.yml
+
+    - name: Write the user, the directories, the configuration and the unit
+      ansible.builtin.include_tasks: files.yml
+
+    - name: Start the node, or restart it onto what changed
+      ansible.builtin.include_tasks: service.yml

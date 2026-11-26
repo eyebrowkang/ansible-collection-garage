@@ -1,0 +1,113 @@
+---
+# What's on the host, read-only: the installed version, an existing configuration and unit
+# (a node this collection or the eyebrowkang.garage role deployed), and the service. Then
+# the checks that depend on it, still before anything changes.
+- name: Ask the installed binary for its version
+  ansible.builtin.command: "{{ garage_node_binary_path }} --version"
+  register: garage_node_installed
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Read the existing configuration and unit
+  ansible.builtin.slurp:
+    src: "{{ item }}"
+  loop:
+    - "{{ garage_node_config_path }}"
+    - "{{ garage_node_unit_path }}"
+  register: garage_node_existing
+  failed_when: false
+  check_mode: false
+
+- name: Read the service's state
+  ansible.builtin.systemd_service:
+    name: garage.service
+  register: garage_node_service
+  check_mode: false
+
+- name: Gather what was read
+  vars:
+    config_text: "{{ garage_node_existing.results[0].content | default('') | b64decode }}"
+    unit_text: "{{ garage_node_existing.results[1].content | default('') | b64decode }}"
+  ansible.builtin.set_fact:
+    garage_node_current_version: >-
+      {{ (garage_node_installed.stdout | default('') | eyebrowkang.garage.garage_version)
+         if garage_node_installed.rc | default(1) == 0 else '' }}
+    garage_node_existing_config: "{{ config_text | eyebrowkang.garage.from_toml if config_text else {} }}"
+    garage_node_existing_unit: "{{ unit_text }}"
+    garage_node_running: "{{ garage_node_service.status.ActiveState | default('') in ['active', 'activating', 'reloading'] }}"
+
+- name: Check the existing unit is the collection's or the eyebrowkang.garage role's
+  ansible.builtin.assert:
+    that:
+      - garage_node_existing_unit is search('(?m)^User=' ~ garage_node_user ~ '$')
+      - garage_node_existing_unit is search('--config ' ~ (garage_node_config_path | regex_escape) ~ '( |$)')
+    fail_msg: >-
+      {{ garage_node_unit_path }} doesn't run Garage as the {{ garage_node_user }} user with
+      {{ garage_node_config_path }}: this node was deployed with other paths or names (such
+      as the eyebrowkang.garage role's garage_user or garage_config_dir changed from their
+      defaults), which the collection can't take over.
+    quiet: true
+  when: garage_node_existing_unit | length > 0
+
+- name: Check the change of version
+  when: garage_node_state == 'present'
+  block:
+    - name: Tell what the change of version is
+      ansible.builtin.set_fact:
+        garage_node_upgrade: >-
+          {{ garage_node_current_version | eyebrowkang.garage.garage_upgrade_kind(garage_node_version) }}
+
+    - name: Check the change of version is one the collection makes
+      ansible.builtin.assert:
+        that: garage_node_upgrade in ['install', 'none', 'minor', 'major']
+        fail_msg: >-
+          {{ 'Garage ' ~ garage_node_current_version ~ ' is installed, newer than '
+             ~ garage_node_version ~ ': Garage can\'t go back to an older version.'
+             if garage_node_upgrade == 'downgrade'
+             else 'Garage ' ~ garage_node_current_version ~ ' is installed: going to '
+                  ~ garage_node_version ~ ' skips a major version, and Garage only migrates'
+                  ~ ' between contiguous major versions.' }}
+        quiet: true
+
+    - name: Check a major upgrade is asked for
+      ansible.builtin.assert:
+        that: garage_node_upgrade != 'major' or garage_node_major_upgrade | bool
+        fail_msg: >-
+          Going from Garage {{ garage_node_current_version }} to {{ garage_node_version }} is
+          a major upgrade, which stops every node of the cluster at once. Set
+          garage_node_major_upgrade to true to do it (docs/design.md, "Major upgrades").
+        quiet: true
+
+    # Not yet implemented: docs/design.md, "Major upgrades".
+    - name: Check the major upgrade can be done
+      ansible.builtin.assert:
+        that: garage_node_upgrade != 'major'
+        fail_msg: Major upgrades aren't implemented yet.
+        quiet: true
+
+- name: Check the node keeps its identity
+  when:
+    - garage_node_state == 'present'
+    - garage_node_existing_config.metadata_dir is defined
+  block:
+    - name: Look for the node's identity
+      ansible.builtin.stat:
+        path: "{{ garage_node_existing_config.metadata_dir }}/node_key"
+      register: garage_node_identity
+      check_mode: false
+
+    - name: Check the metadata and data directories stay
+      vars:
+        changed: >-
+          {{ garage_node_existing_config
+             | eyebrowkang.garage.garage_changed_identity_dirs(garage_node_settings) }}
+      ansible.builtin.assert:
+        that: changed | length == 0
+        fail_msg: >-
+          This node has an identity in {{ garage_node_existing_config.metadata_dir }}, and
+          garage_node_settings changes its {{ changed | join(' and ') }}: Garage would start
+          as a new, empty node. Moving a node's directories is the admin's
+          (docs/design.md, principle 6).
+        quiet: true
+      when: garage_node_identity.stat.exists

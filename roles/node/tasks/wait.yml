@@ -1,0 +1,21 @@
+---
+# Waits for garage_node_target's admin API, then, when garage_node_require_health, for the
+# node to report quorum. Bounded: a node that doesn't come up fails the run.
+- name: Wait for the admin API of {{ garage_node_target }}
+  ansible.builtin.wait_for:
+    host: "{{ omit if hostvars[garage_node_target].garage_node_admin_socket else hostvars[garage_node_target].garage_node_admin_host }}"
+    port: "{{ omit if hostvars[garage_node_target].garage_node_admin_socket else hostvars[garage_node_target].garage_node_admin_port | int }}"
+    path: "{{ hostvars[garage_node_target].garage_node_admin_socket or omit }}"
+    timeout: 60
+  delegate_to: "{{ garage_node_target }}"
+
+- name: Wait for the cluster to be reported healthy by {{ garage_node_target }}
+  ansible.builtin.uri:
+    url: "{{ hostvars[garage_node_target].garage_node_health_url }}"
+    unix_socket: "{{ hostvars[garage_node_target].garage_node_admin_socket or omit }}"
+  register: garage_node_health
+  until: garage_node_health.status == 200
+  retries: 30
+  delay: 2
+  delegate_to: "{{ garage_node_target }}"
+  when: garage_node_require_health | bool

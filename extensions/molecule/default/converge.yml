@@ -1,6 +1,7 @@
 ---
+# The test variables come from the linked inventory (inventory/group_vars/).
 - name: Converge
   hosts: all
   become: true
   roles:
-    - role: example
+    - role: eyebrowkang.garage.node

@@ -1,0 +1,127 @@
+---
+# The binary at garage_node_binary_path is the requested version, or it's replaced:
+# downloaded (by the host or the controller), its checksum verified on the host, its version
+# checked, then put in place atomically. A running node keeps the old binary until
+# service.yml restarts it.
+- name: Tell whether the binary is replaced
+  ansible.builtin.set_fact:
+    garage_node_binary_needed: "{{ garage_node_upgrade != 'none' }}"
+    garage_node_binary_checksum: >-
+      sha256:{{ garage_node_checksum if garage_node_checksum != ''
+                else garage_node_checksums[garage_node_version][garage_node_arch] }}
+
+- name: Report the binary would be replaced
+  ansible.builtin.debug:
+    msg: Garage {{ garage_node_version }} would be installed.
+  changed_when: true
+  when:
+    - garage_node_binary_needed | bool
+    - ansible_check_mode
+
+- name: Install Garage {{ garage_node_version }}
+  when:
+    - garage_node_binary_needed | bool
+    - not ansible_check_mode
+  block:
+    - name: Create a download directory
+      ansible.builtin.tempfile:
+        state: directory
+        path: "{{ garage_node_download_parent }}"
+        prefix: garage-install.
+      register: garage_node_tmp
+
+    - name: Download the binary on the host
+      ansible.builtin.get_url:
+        url: "{{ garage_node_url }}"
+        dest: "{{ garage_node_tmp.path }}/garage"
+        checksum: "{{ garage_node_binary_checksum }}"
+        mode: "0755"
+        timeout: 120
+      # A bare retries retries until the task doesn't fail.
+      retries: 3
+      delay: 10
+      when: garage_node_fetch == 'target'
+
+    # Each host for itself, one at a time: the first fetches into the cache, the others find
+    # the file there. The cache isn't trusted: the host verifies the checksum again.
+    - name: Download the binary into the controller's cache
+      when: garage_node_fetch == 'controller'
+      delegate_to: localhost
+      # The play usually runs with become; the controller side must not sudo. The variable
+      # also overrides an inventory-level ansible_become, which beats the keyword.
+      become: false
+      vars:
+        ansible_become: false
+      throttle: 1
+      block:
+        - name: Create the cache entry
+          ansible.builtin.file:
+            path: "{{ garage_node_controller_cache }}"
+            state: directory
+            mode: "0755"
+
+        - name: Download into the cache
+          ansible.builtin.get_url:
+            url: "{{ garage_node_url }}"
+            dest: "{{ garage_node_controller_cache }}/garage"
+            checksum: "{{ garage_node_binary_checksum }}"
+            mode: "0644"
+            timeout: 120
+          retries: 3
+          delay: 10
+
+    - name: Upload the binary to the host
+      ansible.builtin.copy:
+        src: "{{ garage_node_controller_cache }}/garage"
+        dest: "{{ garage_node_tmp.path }}/garage"
+        mode: "0755"
+      when: garage_node_fetch == 'controller'
+
+    - name: Verify the uploaded binary's checksum
+      ansible.builtin.stat:
+        path: "{{ garage_node_tmp.path }}/garage"
+        checksum_algorithm: sha256
+      register: garage_node_uploaded
+      when: garage_node_fetch == 'controller'
+
+    - name: Check the uploaded binary's checksum
+      ansible.builtin.assert:
+        that: ('sha256:' ~ garage_node_uploaded.stat.checksum) == (garage_node_binary_checksum | lower)
+        fail_msg: >-
+          The binary copied from the controller's cache ({{ garage_node_controller_cache }})
+          doesn't have the expected checksum: remove the cache entry and run again.
+        quiet: true
+      when: garage_node_fetch == 'controller'
+
+    - name: Ask the download for its version
+      ansible.builtin.command: "{{ garage_node_tmp.path }}/garage --version"
+      register: garage_node_downloaded
+      changed_when: false
+      failed_when: false
+
+    - name: Check the download is the requested version
+      ansible.builtin.assert:
+        that:
+          - garage_node_downloaded.rc == 0
+          - (garage_node_downloaded.stdout | eyebrowkang.garage.garage_version) == garage_node_version
+        fail_msg: >-
+          {{ garage_node_url }} is not Garage {{ garage_node_version }}: it reports
+          "{{ garage_node_downloaded.stdout | default('') }}{{ garage_node_downloaded.stderr | default('') }}".
+        quiet: true
+
+    # copy writes a temporary file next to the destination and renames it: atomic.
+    - name: Put the binary in place
+      ansible.builtin.copy:
+        src: "{{ garage_node_tmp.path }}/garage"
+        dest: "{{ garage_node_binary_path }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0755"
+      register: garage_node_binary
+  always:
+    - name: Remove the download directory
+      ansible.builtin.file:
+        path: "{{ garage_node_tmp.path }}"
+        state: absent
+      when: garage_node_tmp.path is defined

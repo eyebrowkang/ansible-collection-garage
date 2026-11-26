@@ -1,0 +1,74 @@
+---
+argument_specs:
+  main:
+    short_description: A Garage node
+    description:
+      - Installs, configures, upgrades or removes a Garage node, the official static binary
+        under systemd. See docs/design.md for what it guarantees.
+    options:
+      garage_node_state:
+        type: str
+        choices: [present, absent]
+        description:
+          - C(present) installs or upgrades the node and starts it.
+          - C(absent) stops it and removes the binary, the unit, /etc/garage and the garage
+            user. The metadata and data directories stay.
+      garage_node_version:
+        type: str
+        description:
+          - The exact Garage version, such as C(v2.6.0). Required with C(present). There is
+            no default - upgrading the collection never upgrades Garage.
+      garage_node_checksum:
+        type: str
+        description:
+          - The SHA256 of the binary, for a version the collection doesn't know yet. Empty
+            uses the collection's own.
+      garage_node_url:
+        type: str
+        description:
+          - Where the binary is downloaded from. A mirror needs no trust - the checksum is
+            verified on the host.
+      garage_node_fetch:
+        type: str
+        choices: [target, controller]
+        description:
+          - Who downloads the binary - the host, or the controller, which copies it over
+            (hosts without internet access).
+      garage_node_cache_dir:
+        type: path
+        description:
+          - The controller's download cache, with C(garage_node_fetch=controller).
+      garage_node_settings:
+        type: dict
+        description:
+          - garage.toml, as YAML. Merged over the role's defaults - the bind addresses and
+            the S3 region. Required with C(present) - at least C(metadata_dir), C(data_dir)
+            and C(replication_factor).
+          - The secrets aren't set here - see garage_node_rpc_secret and the tokens.
+      garage_node_rpc_secret:
+        type: str
+        no_log: true
+        description:
+          - The cluster's RPC secret, 32 bytes as 64 hex characters (C(openssl rand -hex 32)).
+            Required with C(present). Written to a file of its own.
+      garage_node_admin_token:
+        type: str
+        no_log: true
+        description:
+          - The admin API token. Empty - none, the admin API takes only tokens created
+            through it. Written to a file of its own.
+      garage_node_metrics_token:
+        type: str
+        no_log: true
+        description:
+          - The token for the metrics endpoint. Empty - none. Written to a file of its own.
+      garage_node_systemd_override:
+        type: str
+        description:
+          - A drop-in for garage.service, in systemd's own syntax (C([Service]) ...).
+            Empty - none.
+      garage_node_major_upgrade:
+        type: bool
+        description:
+          - Allows garage_node_version to cross a major version (such as v2 to v3), which
+            stops every node of the cluster at once. See docs/design.md, "Major upgrades".

@@ -1,0 +1,29 @@
+# {{ garage_node_marker }}
+{% set paths = garage_node_effective_settings | eyebrowkang.garage.garage_node_paths %}
+[Unit]
+Description=Garage object storage
+Documentation=https://garagehq.deuxfleurs.fr/documentation/
+After=network-online.target
+Wants=network-online.target
+RequiresMountsFor={{ ([garage_node_home] + paths) | join(' ') }}
+
+[Service]
+Type=simple
+User={{ garage_node_user }}
+Group={{ garage_node_group }}
+WorkingDirectory={{ garage_node_home }}
+Environment=GARAGE_LOG_TO_JOURNALD=1
+ExecStart={{ garage_node_binary_path }} --config {{ garage_node_config_path }} server
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+LimitNOFILE=42000
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths={{ ([garage_node_home] + paths) | unique | join(' ') }}
+
+[Install]
+WantedBy=multi-user.target
