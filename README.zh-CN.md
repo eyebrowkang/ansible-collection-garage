@@ -37,7 +37,8 @@ make lint        # yamllint + ansible-lint
 make sanity      # ansible-test sanity (--venv)
 make units       # ansible-test units (--venv)
 make test        # molecule: one node in docker (MOLECULE_DISTRO and MOLECULE_IMAGE pick the distribution)
-make test-vm     # molecule: one node on a VM (vagrant; needs KVM)
+make test-vm     # molecule: the cluster on four VMs, before a release (vagrant; needs KVM)
+uv run molecule test -s cluster   # or takeover, major, lifecycle, negative
 ```
 
 `ansible-test` 必须在 `ansible_collections/eyebrowkang/garage/` 路径下运行。CI 会把仓库检出到这个路径。

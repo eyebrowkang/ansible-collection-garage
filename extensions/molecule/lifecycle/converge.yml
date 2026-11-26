@@ -1,0 +1,13 @@
+---
+# The binary through the controller's cache, and a drop-in for the unit.
+- name: Converge
+  hosts: all
+  become: true
+  roles:
+    - role: eyebrowkang.garage.node
+      vars:
+        garage_node_fetch: controller
+        garage_node_cache_dir: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/cache"
+        garage_node_systemd_override: |
+          [Service]
+          Environment=RUST_LOG=garage=debug

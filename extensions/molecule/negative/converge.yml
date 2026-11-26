@@ -1,0 +1,175 @@
+---
+# One play per input the roles refuse. Each expects the refusal (tasks/refused.yml); a role
+# that runs instead fails the play.
+
+- name: Refuse a missing replication_factor
+  hosts: all
+  become: true
+  vars:
+    refused_role: node
+    refused_because: "replication_factor is required"
+    garage_node_settings:
+      metadata_dir: /var/lib/garage/meta
+      data_dir: /var/lib/garage/data
+  tasks:
+    - name: Expect the refusal
+      ansible.builtin.include_tasks: tasks/refused.yml
+
+- name: Refuse a secret in the settings
+  hosts: all
+  become: true
+  vars:
+    refused_role: node
+    refused_because: "rpc_secret is refused"
+    garage_node_settings: "{{ negative_settings | combine({'rpc_secret': garage_node_rpc_secret}) }}"
+  tasks:
+    - name: Expect the refusal
+      ansible.builtin.include_tasks: tasks/refused.yml
+
+- name: Refuse a setting newer than the version
+  hosts: all
+  become: true
+  vars:
+    refused_role: node
+    refused_because: "needs Garage v2.5.0 or later"
+    garage_node_version: v2.4.1
+    garage_node_settings: "{{ negative_settings | combine({'s3_api': {'public_endpoint': 'https://s3.example.com'}}) }}"
+  tasks:
+    - name: Expect the refusal
+      ansible.builtin.include_tasks: tasks/refused.yml
+
+- name: Refuse a version without a checksum
+  hosts: all
+  become: true
+  vars:
+    refused_role: node
+    refused_because: "has no checksum in the collection"
+    garage_node_version: v2.99.0
+  tasks:
+    - name: Expect the refusal
+      ansible.builtin.include_tasks: tasks/refused.yml
+
+- name: Refuse a malformed RPC secret
+  hosts: all
+  become: true
+  vars:
+    refused_role: node
+    refused_because: "64 hex characters"
+    garage_node_rpc_secret: deadbeef
+  tasks:
+    - name: Expect the refusal
+      ansible.builtin.include_tasks: tasks/refused.yml
+
+- name: Refuse a moved metadata directory
+  hosts: all
+  become: true
+  vars:
+    refused_role: node
+    refused_because: "changes its metadata_dir"
+    garage_node_settings: "{{ negative_settings | combine({'metadata_dir': '/srv/garage/meta'}) }}"
+  tasks:
+    - name: Expect the refusal
+      ansible.builtin.include_tasks: tasks/refused.yml
+
+- name: Refuse another metadata engine
+  hosts: all
+  become: true
+  vars:
+    refused_role: node
+    refused_because: "changes its db_engine"
+    garage_node_settings: "{{ negative_settings | combine({'db_engine': 'sqlite'}) }}"
+  tasks:
+    - name: Expect the refusal
+      ansible.builtin.include_tasks: tasks/refused.yml
+
+- name: Refuse a downgrade
+  hosts: all
+  become: true
+  vars:
+    refused_role: node
+    refused_because: "go back to an older version"
+    garage_node_version: v2.5.0
+  tasks:
+    - name: Expect the refusal
+      ansible.builtin.include_tasks: tasks/refused.yml
+
+- name: Refuse a skipped major version
+  hosts: all
+  become: true
+  vars:
+    refused_role: node
+    refused_because: "skips a major version"
+    garage_node_version: v4.0.0
+    garage_node_checksum: "{{ '0' * 64 }}"
+  tasks:
+    - name: Expect the refusal
+      ansible.builtin.include_tasks: tasks/refused.yml
+
+- name: Refuse a major upgrade not asked for
+  hosts: all
+  become: true
+  vars:
+    refused_role: node
+    refused_because: "Set garage_node_major_upgrade to true"
+    garage_node_version: v3.0.0-beta1
+  tasks:
+    - name: Expect the refusal
+      ansible.builtin.include_tasks: tasks/refused.yml
+
+- name: Refuse a major upgrade of part of the cluster
+  hosts: garage-negative-1
+  become: true
+  vars:
+    refused_role: node
+    refused_because: "aren't in the play"
+    garage_node_version: v3.0.0-beta1
+    garage_node_major_upgrade: true
+  tasks:
+    - name: Expect the refusal
+      ansible.builtin.include_tasks: tasks/refused.yml
+
+- name: Refuse a major upgrade in batches
+  hosts: all
+  become: true
+  serial: 1
+  vars:
+    refused_role: node
+    refused_because: "without serial"
+    garage_node_version: v3.0.0-beta1
+    garage_node_major_upgrade: true
+  tasks:
+    - name: Expect the refusal
+      ansible.builtin.include_tasks: tasks/refused.yml
+
+- name: Refuse a variable of the eyebrowkang.garage role
+  hosts: all
+  become: true
+  vars:
+    refused_role: node
+    refused_because: "garage_layout_zone"
+    garage_layout_zone: dc1
+  tasks:
+    - name: Expect the refusal
+      ansible.builtin.include_tasks: tasks/refused.yml
+
+- name: Refuse a layout role without a zone
+  hosts: all
+  become: true
+  vars:
+    refused_role: cluster
+    refused_because: "garage_cluster_zone is required"
+    garage_cluster_zone: ""
+  tasks:
+    - name: Expect the refusal
+      ansible.builtin.include_tasks: tasks/refused.yml
+
+- name: Refuse a layout role with a capacity and a gateway
+  hosts: all
+  become: true
+  vars:
+    refused_role: cluster
+    refused_because: "not both and not neither"
+    garage_cluster_gateway: true
+  tasks:
+    - name: Expect the refusal
+      ansible.builtin.include_tasks: tasks/refused.yml

@@ -30,9 +30,12 @@
           - side_effect_after.status.MainPID != side_effect_before.status.MainPID
           - side_effect_after.status.NRestarts | int == 0
 
+    # Wall-clock time, to the second: a monotonic clock is each host's own (VMs).
     - name: Read when each node started
       ansible.builtin.set_fact:
-        side_effect_started: "{{ side_effect_after.status.ExecMainStartTimestampMonotonic | int }}"
+        side_effect_started: >-
+          {{ (side_effect_after.status.ExecMainStartTimestamp
+              | to_datetime('%a %Y-%m-%d %H:%M:%S %Z')).timestamp() | int }}
 
 - name: Check the restarts were one at a time, and once
   hosts: all
