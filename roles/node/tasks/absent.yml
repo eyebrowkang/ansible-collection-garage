@@ -1,0 +1,32 @@
+---
+# Stops and removes the node: the binary, the unit and /etc/garage. The metadata and data
+# directories stay, and so do the garage user and group that own them: a user created again
+# could get other IDs, and Garage couldn't read what it kept (docs/design.md, "Removal").
+- name: Stop and disable the service
+  ansible.builtin.systemd_service:
+    name: garage.service
+    state: stopped
+    enabled: false
+  when: garage_node_service.status.LoadState | default('not-found') != 'not-found'
+
+- name: Remove the node's files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ garage_node_unit_path }}"
+    - "{{ garage_node_dropin_path | dirname }}"
+    - "{{ garage_node_config_dir }}"
+    - "{{ garage_node_binary_path }}"
+  register: garage_node_removed
+
+- name: Remove what the eyebrowkang.garage role left
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ garage_node_role_leftovers }}"
+
+- name: Reload systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: garage_node_removed is changed  # noqa: no-handler

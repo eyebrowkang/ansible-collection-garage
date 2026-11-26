@@ -1,0 +1,19 @@
+---
+# Values only: each variable is described in meta/argument_specs.yml.
+
+garage_node_state: present
+
+# garage_node_version, garage_node_settings and garage_node_rpc_secret have no default:
+# present requires them.
+
+garage_node_checksum: ""
+# default(''): argument validation renders it on absent too, where there's no version.
+garage_node_url: >-
+  https://garagehq.deuxfleurs.fr/_releases/{{ garage_node_version | default('')
+  }}/{{ garage_node_arch }}/garage
+garage_node_fetch: target
+garage_node_cache_dir: "~/.cache/eyebrowkang.garage"
+garage_node_admin_token: ""
+garage_node_metrics_token: ""
+garage_node_systemd_override: ""
+garage_node_major_upgrade: false

@@ -1,0 +1,6 @@
+---
+# Docker instances only. The docker connection already runs as root, so become is a
+# redundant sudo wrapper - and sudo's PAM stack breaks intermittently in EL containers on CI
+# runners ("PAM account management error"). Connection variables override the play-level
+# `become: true` keyword.
+ansible_become: false

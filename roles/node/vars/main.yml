@@ -1,0 +1,140 @@
+---
+# Internal data for the node role: overriding it isn't supported (docs/design.md, "Interface
+# between the roles"). These are the eyebrowkang.garage role's defaults, so a host it deployed
+# is taken over in place.
+garage_node_binary_path: /usr/local/bin/garage
+garage_node_user: garage
+garage_node_group: garage
+garage_node_home: /var/lib/garage
+garage_node_config_dir: /etc/garage
+garage_node_config_path: /etc/garage/garage.toml
+garage_node_secrets_dir: /etc/garage/secrets
+garage_node_unit_path: /etc/systemd/system/garage.service
+garage_node_dropin_path: /etc/systemd/system/garage.service.d/eyebrowkang-garage.conf
+# Where a download waits for its checks (it runs once from there: not /tmp, which may be
+# noexec).
+garage_node_download_parent: /var/tmp
+# The first line of the files the role writes, so a takeover tells them from the role's.
+garage_node_marker: "Managed by the eyebrowkang.garage collection (node role)"
+
+# What the eyebrowkang.garage role left that the collection doesn't use.
+garage_node_role_leftovers:
+  - /etc/garage/garage.env
+  - /usr/local/bin/garage.bak
+
+# The oldest Garage the collection runs.
+garage_node_min_version: v2.0.0
+
+# The settings the node role writes unless garage_node_settings sets them: the
+# eyebrowkang.garage role's former values (docs/design.md, principle 3).
+garage_node_settings_defaults:
+  rpc_bind_addr: "[::]:3901"
+  s3_api:
+    api_bind_addr: "[::]:3900"
+    s3_region: garage
+  admin:
+    api_bind_addr: "[::]:3903"
+
+# The variables of the eyebrowkang.garage role. Any of them still set means a play written
+# for the role: the collection doesn't read them, so the run fails instead of ignoring them.
+garage_node_role_variables:
+  - garage_version
+  - garage_user
+  - garage_group
+  - garage_home
+  - garage_config_dir
+  - garage_data_dir
+  - garage_data_dirs
+  - garage_metadata_dir
+  - garage_db_engine
+  - garage_replication_factor
+  - garage_rpc_secret
+  - garage_rpc_secret_file
+  - garage_rpc_bind_addr
+  - garage_rpc_public_addr
+  - garage_bootstrap_peers
+  - garage_s3_region
+  - garage_s3_api_bind_addr
+  - garage_s3_root_domain
+  - garage_s3_public_endpoint
+  - garage_s3_web_bind_addr
+  - garage_s3_web_root_domain
+  - garage_admin_api_bind_addr
+  - garage_admin_healthcheck_host
+  - garage_healthcheck_enabled
+  - garage_admin_token
+  - garage_admin_token_file
+  - garage_metrics_token
+  - garage_metrics_token_file
+  - garage_cluster_connect
+  - garage_cluster_hosts
+  - garage_layout_init
+  - garage_layout_zone
+  - garage_layout_capacity
+  - garage_layout_gateway
+  - garage_layout_tags
+  - garage_upgrade
+  - garage_upgrade_precheck
+  - garage_checksum
+  - garage_download_url
+  - garage_download_local
+  - garage_config_template
+  - garage_no_log
+  - garage_env_variables
+
+# ansible_facts['architecture'] -> Garage's build for it.
+garage_node_arch_map:
+  x86_64: x86_64-unknown-linux-musl
+  aarch64: aarch64-unknown-linux-musl
+  armv7l: armv6l-unknown-linux-musleabihf
+  armv6l: armv6l-unknown-linux-musleabihf
+  i686: i686-unknown-linux-musl
+  i386: i686-unknown-linux-musl
+garage_node_arch: "{{ garage_node_arch_map[ansible_facts['architecture']] | default('') }}"
+
+# Controller directory caching one download, per URL.
+garage_node_controller_cache: "{{ garage_node_cache_dir | expanduser }}/{{ garage_node_url | hash('sha1') }}"
+
+# SHA256 of each release's binary, by architecture: the trust root (docs/design.md,
+# principle 2). scripts/update-checksums.sh measures a new release.
+garage_node_checksums:
+  v2.0.0:
+    x86_64-unknown-linux-musl: "8f6ea413ddf7e6cba40d4defd51b7bc38bc32d8b4579eaa510e63b112d116c73"
+    aarch64-unknown-linux-musl: "07c37b89cba6ead330dfafc2fc72d00308dcde75fb5922f161585037417c57ee"
+    armv6l-unknown-linux-musleabihf: "a426b10510812c03ebdc060f5c3bba4e381277e031c8b98362bea1e7a2a6b591"
+    i686-unknown-linux-musl: "231356d3787a6e7ef3048d0cb5989fc75942bacb2991a287dd93752670271551"
+  v2.1.0:
+    x86_64-unknown-linux-musl: "543b0414d1464ab855ebe9b843938a5e5361fd24436891ce3dff9e03d02839d8"
+    aarch64-unknown-linux-musl: "65a1bedc9b6d5a2df788b55e81cb0013129326478fd94cf83a844ab278e8055f"
+    armv6l-unknown-linux-musleabihf: "4aab47c1d0e6297f6cab61994620dd23cb163a8e21fbb4775e0d029e3c2b85b5"
+    i686-unknown-linux-musl: "fff24feca11f613e67a777dc373e9fbd6ce7361b1c1578691c1b92047c5de62c"
+  v2.2.0:
+    x86_64-unknown-linux-musl: "ec761bb996e8453e86fe68ccc1cf222c73bb1ef05ae0b540bd4827e7d1931aab"
+    aarch64-unknown-linux-musl: "3922bd3524e5267587a27fec91e4d8447353113ea3a55e2d1786a53d7529d1da"
+    armv6l-unknown-linux-musleabihf: "12210b773e0dff921c89b8894c0dc66e2cbc6cd6c2574f409f8405de2f7945b5"
+    i686-unknown-linux-musl: "ee221f20d5685631489711aa2bf5ee4af321d3eab4a5cc6e558136bbea7f773b"
+  v2.3.0:
+    x86_64-unknown-linux-musl: "f98d317942bb341151a2775162016bb50cf86b865d0108de03eb5db16e2120cd"
+    aarch64-unknown-linux-musl: "8ced2ad3040262571de08aa600959aa51f97576d55da7946fcde6f66140705e2"
+    armv6l-unknown-linux-musleabihf: "c6f8532dbdeb40549905a2b65158827c0b0a692bdb74b1e8fe1c3b4c558771e3"
+    i686-unknown-linux-musl: "fbcc35b5b87bdceb227af610f09994a5b3aef7fb18d94453720d6e4478b0b024"
+  v2.4.0:
+    x86_64-unknown-linux-musl: "1a93848b61d3128a6f98aff301b7f23d66cdcc1dc9cf7aa0768e382901eebf37"
+    aarch64-unknown-linux-musl: "1d0e5fa62b12eb10fcc26f83c857d762a22ddb45bd436f96cba5d824e2275c24"
+    armv6l-unknown-linux-musleabihf: "a1eb73a863886f7e0192f40a3e90a62ac66687a4756f0323d2cce1e42eec57f0"
+    i686-unknown-linux-musl: "e58f4d08dc3679e868eefd5180c044ced5543bf902c92d82fa9e64d84fcc44fd"
+  v2.4.1:
+    x86_64-unknown-linux-musl: "ae49f8de4aaee6b5ca305f7cbdccc8cd8a29b2804aac074649f18bfb83d0a2b6"
+    aarch64-unknown-linux-musl: "004b6081c6e3cccbb80317c69e3c5749fbb3fc889e217cc9b89c215bf0dd7ded"
+    armv6l-unknown-linux-musleabihf: "eaa8c232c2db342589808f8106507b01f49eeb4c4ff2508257f9e2e77e7bf9db"
+    i686-unknown-linux-musl: "0569939d52c322385f71fc4d62bad68ceb9689e950a210eeef3625b724e655a8"
+  v2.5.0:
+    x86_64-unknown-linux-musl: "2ff667286217cd73ebcb1c03af993822365000441dfe31a80cb64c5189a9dea8"
+    aarch64-unknown-linux-musl: "69b6040cef428b993500c17dd0d0c1240acf2f3f667b9b05ceba4b9660db4e8c"
+    armv6l-unknown-linux-musleabihf: "2967ddf0924402558cbc1474832e4c6f1ca3b09c4458be918b1669fb4df362c3"
+    i686-unknown-linux-musl: "ef60457706cf6fcdeba77e566b7ed05d3d686f92bc36396b54098b1c8cd7fc5d"
+  v2.6.0:
+    x86_64-unknown-linux-musl: "c270bd65431ca32f0b0d5df23bab71e3b64a08517fdf9037968f146ed17c51c7"
+    aarch64-unknown-linux-musl: "529903efab83da4a0284e66891edcec6491af26e2dacca148f860245d39e7ff4"
+    armv6l-unknown-linux-musleabihf: "7c09d019ae1c6a30a4ebeeddeab538d68f136176d5bfe5b2f71acd9cc76855b2"
+    i686-unknown-linux-musl: "1b7d0d372eeeb8f9927d62ad46a0f99453f65002a975536b0037139c3b20f185"

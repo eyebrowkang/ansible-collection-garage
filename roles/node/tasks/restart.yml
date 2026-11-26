@@ -1,0 +1,22 @@
+---
+# Restarts garage_node_target, then waits for it. It must be as healthy as it was: a node
+# that reported quorum (/health 200) must report it again before the next node stops.
+- name: Ask whether the cluster is healthy before restarting {{ garage_node_target }}
+  ansible.builtin.uri:
+    url: "{{ hostvars[garage_node_target].garage_node_health_url }}"
+    unix_socket: "{{ hostvars[garage_node_target].garage_node_admin_socket or omit }}"
+    status_code: [200, 503]
+  register: garage_node_health_before
+  failed_when: false
+  delegate_to: "{{ garage_node_target }}"
+
+- name: Restart {{ garage_node_target }}
+  ansible.builtin.systemd_service:
+    name: garage.service
+    state: restarted
+  delegate_to: "{{ garage_node_target }}"
+
+- name: Wait for {{ garage_node_target }}
+  ansible.builtin.include_tasks: wait.yml
+  vars:
+    garage_node_require_health: "{{ garage_node_health_before.status | default(0) == 200 }}"

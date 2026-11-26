@@ -1,0 +1,73 @@
+---
+# Every check runs before anything changes (docs/design.md, principle 5). The probes are
+# read-only, so they run in check mode too.
+- name: Check no variable of the eyebrowkang.garage role is set
+  vars:
+    found: "{{ garage_node_role_variables | select('in', query('ansible.builtin.varnames', '^garage_')) | list }}"
+  ansible.builtin.assert:
+    that: found | length == 0
+    fail_msg: >-
+      These variables belong to the eyebrowkang.garage role, which this collection replaces,
+      and the collection doesn't read them: {{ found | join(', ') }}. Translate them into
+      the node role's variables (see the collection's migration guide), then remove them.
+    quiet: true
+
+- name: Check the platform
+  ansible.builtin.assert:
+    that: ansible_facts['service_mgr'] == 'systemd'
+    fail_msg: >-
+      Garage runs under systemd; this host's service manager is
+      {{ ansible_facts['service_mgr'] }}.
+    quiet: true
+
+- name: Check the inputs
+  when: garage_node_state == 'present'
+  block:
+    - name: Check the version, the settings and the RPC secret are given
+      ansible.builtin.assert:
+        that:
+          - garage_node_version is defined
+          - garage_node_version is match('^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$')
+          - garage_node_settings is defined
+          - garage_node_rpc_secret is defined
+          - garage_node_rpc_secret is match('^[0-9a-fA-F]{64}$')
+        fail_msg: >-
+          With garage_node_state present, garage_node_version must be an exact version such
+          as v2.6.0 (it's {{ garage_node_version | default('not set') }}),
+          garage_node_settings must be set, and garage_node_rpc_secret must be 64 hex
+          characters (openssl rand -hex 32).
+        quiet: true
+
+    - name: Check the version is supported
+      ansible.builtin.assert:
+        that: (garage_node_version | eyebrowkang.garage.garage_compare_versions(garage_node_min_version)) >= 0
+        fail_msg: >-
+          Garage {{ garage_node_version }} is not supported: {{ garage_node_min_version }}
+          or newer is required.
+        quiet: true
+
+    - name: Check there is a verified binary for this version and architecture
+      ansible.builtin.assert:
+        that: >-
+          garage_node_checksum is match('^[0-9a-fA-F]{64}$')
+          or (garage_node_checksums[garage_node_version] | default({}))[garage_node_arch] is defined
+        fail_msg: >-
+          {{ 'Garage ' ~ garage_node_version ~ ' for ' ~ ansible_facts['architecture']
+             ~ ' has no checksum in the collection: set garage_node_checksum to its SHA256'
+             ~ ' (or use a collection release that knows it).'
+             if garage_node_checksum == ''
+             else 'garage_node_checksum must be a SHA256, 64 hex characters.' }}
+        quiet: true
+
+    - name: Check the settings
+      vars:
+        problems: >-
+          {{ (garage_node_settings_defaults | combine(garage_node_settings, recursive=true))
+             | eyebrowkang.garage.garage_settings_problems(garage_node_version) }}
+      ansible.builtin.assert:
+        that: problems | length == 0
+        fail_msg: "{{ problems | join(' ') }}"
+        quiet: true
+
+- name: Read what's on the host
+  ansible.builtin.include_tasks: probe.yml

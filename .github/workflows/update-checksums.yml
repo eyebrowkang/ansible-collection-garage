@@ -1,0 +1,51 @@
+---
+name: Update Checksums
+
+on:
+  schedule:
+    # Monday 06:23 UTC: a new Garage release gets its checksums within a week.
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Garage version (such as v2.7.0); empty: the latest stable release"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-checksums:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Measure the checksums
+        id: update
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+        run: |
+          ./scripts/update-checksums.sh "$VERSION"
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open a pull request
+        if: steps.update.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          # The default GITHUB_TOKEN doesn't trigger CI on the pull request it creates: use the
+          # fine-grained PAT when it's set.
+          token: ${{ secrets.AUTOMATION_TOKEN || github.token }}
+          branch: auto/garage-${{ steps.update.outputs.version }}
+          title: "feat(node): add the checksums of Garage ${{ steps.update.outputs.version }}"
+          commit-message: "feat(node): add the checksums of Garage ${{ steps.update.outputs.version }}"
+          body: >-
+            The SHA256 of Garage ${{ steps.update.outputs.version }}'s binaries, every
+            architecture, measured by downloading them from Garage's release server.
+            Add a changelog fragment before merging.
+          delete-branch: true

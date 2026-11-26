@@ -1,9 +1,0 @@
----
-# The test variables, shared by every scenario: each scenario's molecule.yml links this
-# directory (provisioner.inventory.links), so they live here once. With links molecule
-# ignores inline inventory vars in molecule.yml: put every test variable in these files
-# (per host: an inventory/host_vars/ directory, linked the same way).
-#
-# A path other than the role's default, so converge proves the role honors the variable;
-# verify.yml reads the same variable.
-garage_example_marker_path: "/etc/eyebrowkang.garage.example.molecule"

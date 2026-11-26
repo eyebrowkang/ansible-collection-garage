@@ -1,0 +1,66 @@
+---
+# A node that isn't running is started. A running node with a change is restarted once for
+# all of them, one node at a time across the play, each healthy before the next one stops
+# (docs/design.md, "Restarts").
+- name: Tell how to reach the node's admin API
+  vars:
+    bind: "{{ garage_node_effective_settings.admin.api_bind_addr | string }}"
+    host: "{{ bind | regex_replace(':[0-9]+$', '') | regex_replace('^\\[(.*)\\]$', '\\1') }}"
+    bind_port: "{{ bind | regex_search('[0-9]+$') }}"
+    local: "{{ 'localhost' if host in ['', '::', '0.0.0.0'] else host }}"
+  ansible.builtin.set_fact:
+    garage_node_admin_socket: "{{ bind if bind is match('/') else '' }}"
+    garage_node_admin_host: "{{ local }}"
+    garage_node_admin_port: "{{ bind_port }}"
+    garage_node_health_url: >-
+      {{ 'http://localhost/health' if bind is match('/')
+         else 'http://' ~ ('[' ~ local ~ ']' if ':' in local else local) ~ ':' ~ bind_port ~ '/health' }}
+    garage_node_restart_needed: >-
+      {{ (garage_node_running | bool and (
+           garage_node_binary is changed or garage_node_secrets is changed
+           or garage_node_secrets_removed is changed or garage_node_config is changed
+           or garage_node_unit is changed or garage_node_dropin is changed
+           or garage_node_dropin_removed is changed)) | bool }}
+
+- name: Enable the service
+  ansible.builtin.systemd_service:
+    name: garage.service
+    enabled: true
+
+- name: Start the node
+  ansible.builtin.systemd_service:
+    name: garage.service
+    state: started
+  register: garage_node_started
+  when: not garage_node_running | bool
+
+- name: Wait for the started node
+  ansible.builtin.include_tasks: wait.yml
+  vars:
+    garage_node_target: "{{ inventory_hostname }}"
+    garage_node_require_health: false
+  when:
+    - garage_node_started is changed
+    - not ansible_check_mode
+
+- name: Report the restart
+  ansible.builtin.debug:
+    msg: The node would be restarted onto what changed.
+  changed_when: true
+  when:
+    - garage_node_restart_needed | bool
+    - ansible_check_mode
+
+# One host runs the loop and restarts each node in turn, so the order holds across the play.
+# The batch's nodes only: with serial, ansible_play_hosts holds the earlier batches too.
+- name: Restart the changed nodes, one at a time
+  ansible.builtin.include_tasks: restart.yml
+  loop: >-
+    {{ ansible_play_batch | map('extract', hostvars)
+       | selectattr('garage_node_restart_needed', 'defined')
+       | selectattr('garage_node_restart_needed', 'equalto', true)
+       | map(attribute='inventory_hostname') | list }}
+  loop_control:
+    loop_var: garage_node_target
+  run_once: true
+  when: not ansible_check_mode

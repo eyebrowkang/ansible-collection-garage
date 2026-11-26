@@ -1,0 +1,144 @@
+---
+# The node's user, directories, secrets, garage.toml and unit. Each change is registered:
+# service.yml restarts a running node once for all of them.
+- name: Gather the configuration to write
+  vars:
+    secret_files:
+      rpc_secret_file: "{{ garage_node_secrets_dir }}/rpc_secret"
+      admin: >-
+        {{ ({'admin_token_file': garage_node_secrets_dir ~ '/admin_token'} if garage_node_admin_token != '' else {})
+           | combine({'metrics_token_file': garage_node_secrets_dir ~ '/metrics_token'} if garage_node_metrics_token != '' else {}) }}
+  ansible.builtin.set_fact:
+    garage_node_effective_settings: >-
+      {{ garage_node_settings_defaults
+         | combine(garage_node_settings, recursive=true)
+         | combine(secret_files, recursive=true) }}
+
+- name: Create the garage group
+  ansible.builtin.group:
+    name: "{{ garage_node_group }}"
+    system: true
+
+# The home and shell are the eyebrowkang.garage role's, so a takeover changes nothing.
+- name: Create the garage user
+  ansible.builtin.user:
+    name: "{{ garage_node_user }}"
+    group: "{{ garage_node_group }}"
+    system: true
+    create_home: true
+    home: "{{ garage_node_home }}"
+    shell: /sbin/nologin
+
+- name: Create the configuration directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: "{{ garage_node_group }}"
+    mode: "0750"
+  loop:
+    - "{{ garage_node_config_dir }}"
+    - "{{ garage_node_secrets_dir }}"
+
+- name: Create the metadata and data directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ garage_node_user }}"
+    group: "{{ garage_node_group }}"
+    mode: "0750"
+  loop: "{{ garage_node_effective_settings | eyebrowkang.garage.garage_node_paths }}"
+
+# Garage refuses a secret file others can read: the garage user's, mode 0600.
+- name: Write the secret files
+  ansible.builtin.copy:
+    content: "{{ item.value }}\n"
+    dest: "{{ garage_node_secrets_dir }}/{{ item.name }}"
+    owner: "{{ garage_node_user }}"
+    group: "{{ garage_node_group }}"
+    mode: "0600"
+  loop:
+    - {name: rpc_secret, value: "{{ garage_node_rpc_secret }}"}
+    - {name: admin_token, value: "{{ garage_node_admin_token }}"}
+    - {name: metrics_token, value: "{{ garage_node_metrics_token }}"}
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.value != ''
+  register: garage_node_secrets
+  no_log: true
+  diff: false
+
+- name: Remove the secret files no longer set
+  ansible.builtin.file:
+    path: "{{ garage_node_secrets_dir }}/{{ item.name }}"
+    state: absent
+  loop:
+    - {name: admin_token, value: "{{ garage_node_admin_token }}"}
+    - {name: metrics_token, value: "{{ garage_node_metrics_token }}"}
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.value == ''
+  register: garage_node_secrets_removed
+  no_log: true
+
+- name: Write garage.toml
+  ansible.builtin.copy:
+    content: |
+      # {{ garage_node_marker }}
+      # https://garagehq.deuxfleurs.fr/documentation/reference-manual/configuration/
+
+      {{ garage_node_effective_settings | eyebrowkang.garage.to_toml }}
+    dest: "{{ garage_node_config_path }}"
+    owner: root
+    group: "{{ garage_node_group }}"
+    mode: "0640"
+  register: garage_node_config
+
+- name: Write the unit
+  ansible.builtin.template:
+    src: garage.service.j2
+    dest: "{{ garage_node_unit_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: garage_node_unit
+
+- name: Create the drop-in directory
+  ansible.builtin.file:
+    path: "{{ garage_node_dropin_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: garage_node_systemd_override != ''
+
+- name: Write the drop-in
+  ansible.builtin.copy:
+    content: |
+      # {{ garage_node_marker }}
+      {{ garage_node_systemd_override }}
+    dest: "{{ garage_node_dropin_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: garage_node_systemd_override != ''
+  register: garage_node_dropin
+
+- name: Remove the drop-in
+  ansible.builtin.file:
+    path: "{{ garage_node_dropin_path }}"
+    state: absent
+  when: garage_node_systemd_override == ''
+  register: garage_node_dropin_removed
+
+- name: Remove what the eyebrowkang.garage role left
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ garage_node_role_leftovers }}"
+
+# Not a handler: the restart in service.yml must see the new unit.
+- name: Reload systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: garage_node_unit is changed or garage_node_dropin is changed or garage_node_dropin_removed is changed  # noqa: no-handler

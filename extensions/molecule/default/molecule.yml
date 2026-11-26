@@ -1,10 +1,7 @@
 ---
-# Docker scenario for the collection's example role — same delegated-driver approach
-# as the standalone role template (built-in default driver + community.docker
-# create/destroy). Lives under extensions/molecule (molecule's location for collections)
-# so its playbooks are linted as playbooks, not role content. The role is resolved by
-# its short name (converge uses `roles: [example]`) via the ANSIBLE_ROLES_PATH that
-# .config/molecule/config.yml sets for every scenario.
+# One Garage node, on the distribution MOLECULE_DISTRO names: installed, configured and
+# started by the node role, then checked from the host's real state. Molecule's built-in
+# default (delegated) driver with community.docker create/destroy playbooks.
 dependency:
   name: galaxy   # auto-installs collections.yml + requirements.yml (scenario-absolute paths)
 
@@ -14,20 +11,25 @@ driver:
     managed: true
 
 platforms:
-  - name: garage-example-debian13
-    # systemd-enabled image so service/timer units can be tested in-container.
-    # Pinned by digest (force_pull stays effective + reproducible); bump periodically.
-    image: geerlingguy/docker-debian13-ansible:latest@sha256:d18f6c4b36b7ad9be9f2418375ea73d431fef86d314709497facb56a8f8e76c6
+  # One node per distribution: MOLECULE_DISTRO names it and MOLECULE_IMAGE is its image
+  # (CI runs the matrix), a systemd-enabled image with Python. Molecule doesn't nest
+  # defaults, so the image is given whole; debian13 unless set.
+  - name: garage-node-${MOLECULE_DISTRO:-debian13}
+    image: "${MOLECULE_IMAGE:-geerlingguy/docker-debian13-ansible:latest}"
     systemd: true
     groups:
-      - example_servers
+      - garage_nodes
+      # inventory/group_vars/docker_instances.yml turns become off for docker instances.
+      - docker_instances
 
 provisioner:
   name: ansible
   playbooks:
     create: create.yml
+    prepare: prepare.yml
     destroy: destroy.yml
     converge: converge.yml
+    side_effect: side_effect.yml
     verify: verify.yml
   inventory:
     # The test variables (inventory/group_vars/), shared with the other scenarios.
@@ -44,7 +46,9 @@ scenario:
     - destroy
     - syntax
     - create
+    - prepare
     - converge
     - idempotence
+    - side_effect
     - verify
     - destroy

@@ -46,13 +46,32 @@ jobs:
   molecule:
     runs-on: ubuntu-latest
     needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Systemd-enabled images with Python: geerlingguy's, and another for Arch Linux,
+          # which geerlingguy doesn't build.
+          - {distro: debian12, image: geerlingguy/docker-debian12-ansible:latest}
+          - {distro: debian13, image: geerlingguy/docker-debian13-ansible:latest}
+          - {distro: ubuntu2204, image: geerlingguy/docker-ubuntu2204-ansible:latest}
+          - {distro: ubuntu2404, image: geerlingguy/docker-ubuntu2404-ansible:latest}
+          - {distro: rockylinux8, image: geerlingguy/docker-rockylinux8-ansible:latest}
+          - {distro: rockylinux9, image: geerlingguy/docker-rockylinux9-ansible:latest}
+          - {distro: rockylinux10, image: geerlingguy/docker-rockylinux10-ansible:latest}
+          - {distro: fedora43, image: geerlingguy/docker-fedora43-ansible:latest}
+          - {distro: opensuseleap16, image: geerlingguy/docker-opensuseleap16-ansible:latest}
+          - {distro: archlinux, image: carlodepieri/docker-archlinux-ansible:latest}
+    env:
+      MOLECULE_DISTRO: ${{ matrix.distro }}
+      MOLECULE_IMAGE: ${{ matrix.image }}
     steps:
       - uses: actions/checkout@v4
         with:
           path: ansible_collections/eyebrowkang/garage
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --locked
-      - name: Molecule (example role, docker)
+      - name: Molecule (one node, docker)
         run: uv run molecule test
       - name: Destroy
         if: always()

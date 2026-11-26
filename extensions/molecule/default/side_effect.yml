@@ -1,0 +1,56 @@
+---
+# A change to a running node restarts it once, onto the change; the same inputs again change
+# nothing and restart nothing (docs/design.md, "Restarts").
+- name: Change the configuration of the running node
+  hosts: all
+  become: true
+  tasks:
+    - name: Read the service's process before the change
+      ansible.builtin.systemd_service:
+        name: garage.service
+      register: side_effect_before
+
+    - name: Run the node role with a changed setting and a metrics token
+      ansible.builtin.include_role:
+        name: eyebrowkang.garage.node
+      vars:
+        garage_node_metrics_token: molecule-metrics-token
+        garage_node_settings: "{{ hostvars[inventory_hostname].garage_node_settings | combine({'block_size': 2097152}) }}"
+
+    - name: Read the service's process after the change
+      ansible.builtin.systemd_service:
+        name: garage.service
+      register: side_effect_after
+
+    - name: Check the node was restarted onto the change
+      ansible.builtin.assert:
+        that:
+          - side_effect_after.status.ActiveState == 'active'
+          - side_effect_after.status.MainPID != side_effect_before.status.MainPID
+          - side_effect_after.status.NRestarts | int == 0
+        fail_msg: >-
+          Expected one restart: the process was {{ side_effect_before.status.MainPID }}, it's
+          {{ side_effect_after.status.MainPID }} ({{ side_effect_after.status.ActiveState }}).
+
+    - name: Run the node role with the test variables again
+      ansible.builtin.include_role:
+        name: eyebrowkang.garage.node
+
+    - name: Read the service's process after going back
+      ansible.builtin.systemd_service:
+        name: garage.service
+      register: side_effect_back
+
+    - name: Run the node role once more with the same variables
+      ansible.builtin.include_role:
+        name: eyebrowkang.garage.node
+
+    - name: Read the service's process after the same inputs
+      ansible.builtin.systemd_service:
+        name: garage.service
+      register: side_effect_same
+
+    - name: Check the same inputs restarted nothing
+      ansible.builtin.assert:
+        that: side_effect_same.status.MainPID == side_effect_back.status.MainPID
+        fail_msg: The same inputs restarted the node.

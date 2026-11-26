@@ -1,46 +1,49 @@
 # eyebrowkang.garage
 
-Deploy, upgrade and remove a Garage object storage cluster on systemd hosts
+English | [简体中文](README.zh-CN.md)
 
-## Included content
+Deploy, upgrade and remove a [Garage](https://garagehq.deuxfleurs.fr/) object storage
+cluster on systemd hosts.
 
-- `roles/example` — starter role; replace with your real roles.
+> **In development.** Until 1.0 the collection isn't published to Galaxy and isn't meant for
+> production. It succeeds the
+> [`eyebrowkang.garage` role](https://github.com/eyebrowkang/ansible-role-garage), which
+> stays the way to deploy Garage until then.
+
+What the collection does, and what it doesn't on purpose: [docs/design.md](docs/design.md).
+
+## Roles
+
+| Role | What it manages |
+| ---- | --------------- |
+| [`eyebrowkang.garage.node`](roles/node/README.md) | A Garage node: the binary, its user, the systemd unit, `garage.toml` and its secrets, and their upgrades |
 
 ## Requirements
 
-- ansible-core >= 2.20.0
-- [uv](https://docs.astral.sh/uv/) for local development
-- Docker (for the molecule docker scenario; `ansible-test sanity` runs in a `--venv`)
-- libvirt + Vagrant + KVM (for the vagrant molecule scenario)
-
-## Installing
-
-```bash
-ansible-galaxy collection install eyebrowkang.garage
-```
+- ansible-core 2.20 or newer on the controller.
+- Hosts: Linux with systemd, and a Python ansible-core can use. The tested distributions are
+  Debian 12 and 13, Ubuntu 22.04 and 24.04, Rocky Linux 8, 9 and 10, Fedora 43, openSUSE
+  Leap 16 and Arch Linux.
+- Architectures: x86_64, aarch64, armv6l/armv7l and i686, the builds Garage publishes.
 
 ## Development and testing
 
-Managed with [copier](https://copier.readthedocs.io/) + [uv](https://docs.astral.sh/uv/):
+Managed with [copier](https://copier.readthedocs.io/) and [uv](https://docs.astral.sh/uv/):
 
 ```bash
-uv sync          # install dev toolchain
+uv sync          # install the dev toolchain
 make lint        # yamllint + ansible-lint
 make sanity      # ansible-test sanity (--venv)
 make units       # ansible-test units (--venv)
-make test        # molecule test for the example role (docker)
-make test-vm     # molecule test for the example role (vagrant; needs KVM)
+make test        # molecule: one node in docker (MOLECULE_DISTRO and MOLECULE_IMAGE pick the distribution)
+make test-vm     # molecule: one node on a VM (vagrant; needs KVM)
 ```
 
-> `ansible-test` must run from an `ansible_collections/eyebrowkang/garage/`
-> path. Developing under the meta-repo's `collections/` workspace satisfies this; CI checks
-> the repo out under that path (see the generated CI workflow).
+`ansible-test` must run from an `ansible_collections/eyebrowkang/garage/` path. CI checks
+the repository out under that path.
 
-Pull future template improvements:
-
-```bash
-copier update --trust
-```
+A new Garage release's checksums: `scripts/update-checksums.sh vX.Y.Z`, which a weekly
+workflow also runs.
 
 ## License
 
