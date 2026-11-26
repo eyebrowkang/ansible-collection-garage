@@ -4,7 +4,7 @@
 
 > 本文译自英文版，两者不一致时以[英文版](design.md)为准。
 
-> **草稿。** 本文正在审阅，尚未实现任何内容。待决定的事项列在[待决问题](#待决问题)。
+> **开发中。** 各个 role 按本文编写。1.0 之前本文仍可能变化，collection 也不用于生产环境。
 
 本文说明 `eyebrowkang.garage` 的定位、各个 role 遵循的原则，以及有意不做的事情。提出新功能之前请先读一读：
 大多数「为什么不支持……」的答案都在这里。
@@ -39,11 +39,14 @@ Garage v3 正式发布时，collection 发布 1.0，并且 1.0 能把集群从 v
    - Garage 既不发布签名，也不发布 checksum。collection 自带每个受支持版本、每种架构的 SHA256，在加入该
      版本时实测得到。这就是信任根，由 collection 固定，作用相当于签名密钥。
    - 主机在替换任何东西之前校验下载的文件。下载服务器、镜像和控制端的缓存都不被信任。
-   - collection 不认识的版本会被拒绝，由新的 collection 版本带来。用户显式提供 checksum 的情况见
-     [待决问题](#待决问题)。
+   - collection 不认识的版本会被拒绝，除非用户提供它的 checksum（`garage_install_checksum`）：这仍然是
+     校验过的二进制，并且能衔接 Garage 发布新版本与 collection 发布新版本之间的空档。
 3. **使用 Garage 自己的配置格式。**
    - `garage_config_settings` 就是 `garage.toml`，以 YAML 书写，由 role 写成 TOML。
-   - 没人设置的选项不写入，即使用 Garage 自己的默认值。
+   - 它合并在 role 的少数默认值之上，即 role 原来的值：各监听地址和 S3 region。没人设置的选项不写入，
+     即使用 Garage 自己的默认值。
+   - `replication_factor` 没有默认值：role 原来的 1 对集群是错误的。
+   - `rpc_public_addr` 没有默认值，和 Garage 一致，由它自动检测。
    - 密钥是唯一的例外：`garage_config_rpc_secret`、`garage_config_admin_token` 和
      `garage_config_metrics_token` 各自写入单独的文件，`garage.toml` 引用它们（`rpc_secret_file` 等）。
 4. **集群保持可用，除非 Garage 本身要求停机。**
@@ -73,6 +76,8 @@ Garage v3 正式发布时，collection 发布 1.0，并且 1.0 能把集群从 v
 - 替换是原子的。
 - 拒绝降级：从 v2.5.0 起，Garage 的元数据无法回到旧版本。
 - 拒绝跳过大版本（v1 到 v3）：Garage 只支持相邻大版本之间的迁移。
+- 下载来自 Garage 的发布服务器，设置了 `garage_install_url` 时来自该地址（镜像不需要被信任）；由主机
+  下载，或者在 `garage_install_fetch: controller` 时由控制端下载再复制过去（用于无法访问互联网的主机）。
 
 限制：
 
@@ -143,6 +148,8 @@ Garage v2 到 v3（以后的大版本同理）。步骤遵循 Garage 的
 - 只有当集群还没有 layout（layout 版本为 0）时才应用首个 layout。play 中的每个节点都必须先连接上，
   并且每个节点都要有 zone 和 capacity，或者是 gateway。
 - 已有 layout 的集群永远不会被改动。
+- `cluster` 在节点上经 RPC 运行 `garage` CLI：只需要 RPC 密钥，不需要 admin token。CLI 的输出由插件解析，
+  插件针对每个受支持的大版本做单元测试。
 
 限制：
 
@@ -245,23 +252,3 @@ Garage v2 到 v3（以后的大版本同理）。步骤遵循 Garage 的
 ### 不管防火墙、反向代理和 TLS
 
 Garage 的 API 使用明文 HTTP。前面放什么由主机决定。
-
-## 待决问题
-
-实现之前要决定。每一项都附有建议。
-
-1. **用户提供的 checksum**，用于 collection 还不认识的版本（`garage_install_checksum`）。role 有这个
-   变量。建议：保留，作为显式输入：它仍然是校验过的二进制，并且能衔接 Garage 发布新版本与 collection
-   发布新版本之间的空档。
-2. **经由控制端下载**（role 的 `garage_download_local`）和自定义 URL。建议：两者都保留
-   （`garage_install_url`、`garage_install_fetch: controller`），与 forgejo_runner 一致：role 的用户依赖
-   它们部署离线主机。
-3. **`garage_config_settings` 的默认值。** role 为 `metadata_dir`、`data_dir`、`db_engine`、
-   `replication_factor` 和各监听地址写入默认值。建议：除监听地址外不设默认值，使迁移后的 `garage.toml`
-   与 role 写的相同；`replication_factor` 必填，因为它原来的默认值 1 对集群是错误的。
-4. **`rpc_public_addr`。** role 默认取主机的默认 IPv4。建议：不设默认值，和 Garage 本身一致；迁移指南
-   说明如何保留原来的值。
-5. **`cluster` 如何与 Garage 通信。** 经 RPC 调用 CLI 只需要 RPC 密钥（与 role 相同）；admin API 返回
-   JSON，但需要 admin token。建议：用 CLI，它的输出由插件解析，插件针对每个受支持的大版本做测试。
-6. **许可证。** role 是 MIT；生成的 collection 是 GPL-3.0-or-later，与其他 collection 和 Ansible 的
-   模块生态一致。待确认。

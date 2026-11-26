@@ -2,8 +2,8 @@
 
 English | [简体中文](design.zh-CN.md)
 
-> **Draft.** This document is under review and nothing is implemented yet. The items still
-> to decide are listed in [Open questions](#open-questions).
+> **In development.** The roles are written against this document. Until 1.0 it can still
+> change, and the collection isn't meant for production.
 
 What `eyebrowkang.garage` is for, the rules its roles follow, and what it doesn't do on
 purpose. Read it before proposing a feature: most answers to "why doesn't it..." are here.
@@ -47,11 +47,15 @@ to v3. Before 1.0 it isn't published to Galaxy and isn't meant for production.
      the trust root, fixed by the collection, like a signing key.
    - The host verifies the download before anything is replaced. The download server, a
      mirror and the controller's cache aren't trusted.
-   - A version the collection doesn't know is refused. A new collection release brings it.
-     See [Open questions](#open-questions) for an explicit checksum given by the user.
+   - A version the collection doesn't know is refused, unless the user gives its checksum
+     (`garage_install_checksum`): that's still a verified binary, and it bridges a Garage
+     release and the next collection release.
 3. **Garage's own configuration format.**
    - `garage_config_settings` is `garage.toml`, as YAML. The role writes it as TOML.
-   - A setting nobody sets isn't written: it's Garage's own default.
+   - It's merged over the role's few defaults, the role's former values: the bind addresses
+     and the S3 region. A setting nobody sets isn't written: it's Garage's own default.
+   - `replication_factor` has no default: the role's former 1 is wrong for a cluster.
+   - `rpc_public_addr` has no default, as in Garage, which detects it.
    - Secrets are the one exception: `garage_config_rpc_secret`, `garage_config_admin_token`
      and `garage_config_metrics_token` are written to files of their own, and
      `garage.toml` points at them (`rpc_secret_file`, ...).
@@ -89,6 +93,9 @@ Guarantees:
   version.
 - Skipping a major version (v1 to v3) is refused: Garage only migrates between
   contiguous major versions.
+- The download comes from Garage's release server, from `garage_install_url` when set (a
+  mirror needs no trust), and is fetched by the host or, with `garage_install_fetch:
+  controller`, by the controller and copied over (hosts without internet access).
 
 Limits:
 
@@ -168,6 +175,9 @@ Guarantees:
   node of the play must be connected first, and each must have a zone and a capacity, or
   be a gateway.
 - A cluster that has a layout is never changed.
+- `cluster` runs the `garage` CLI on the nodes, over RPC: it needs only the RPC secret, no
+  admin token. Plugins parse the CLI's output, with unit tests for each supported major
+  version.
 
 Limits:
 
@@ -288,27 +298,3 @@ Only the official static binary under systemd. Garage's Helm chart covers Kubern
 ### No firewall, reverse proxy or TLS
 
 Garage's APIs speak plain HTTP. What fronts them is the host's.
-
-## Open questions
-
-To decide before implementation. Each has a recommendation.
-
-1. **A user-given checksum** for a version the collection doesn't know yet
-   (`garage_install_checksum`). The role has it. Recommendation: keep it, as an explicit
-   input: it's still a verified binary, and it bridges a Garage release and the next
-   collection release.
-2. **Download through the controller** (`garage_download_local` in the role) and a custom
-   URL. Recommendation: keep both (`garage_install_url`, `garage_install_fetch:
-   controller`), as forgejo_runner does: role users rely on them for air-gapped hosts.
-3. **Defaults in `garage_config_settings`.** The role writes defaults for `metadata_dir`,
-   `data_dir`, `db_engine`, `replication_factor` and the bind addresses. Recommendation:
-   no defaults except the bind addresses, so a migrated `garage.toml` equals what the role
-   wrote; `replication_factor` is required, because its old default 1 is wrong for a
-   cluster.
-4. **`rpc_public_addr`.** The role defaults it to the host's default IPv4. Recommendation:
-   no default, as Garage itself; the migration guide shows how to keep the old value.
-5. **How `cluster` talks to Garage.** The CLI over RPC needs only the RPC secret (as the
-   role does); the admin API is JSON, but needs an admin token. Recommendation: the CLI,
-   with its output parsed by plugins tested against each supported major version.
-6. **License.** The role is MIT; the generated collection is GPL-3.0-or-later, like the
-   other collections and Ansible's module ecosystem. To confirm.
