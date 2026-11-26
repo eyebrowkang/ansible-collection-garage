@@ -1,0 +1,5 @@
+---
+# The cluster is taken over at the version the role installed, then upgraded (side_effect).
+garage_node_version: v2.3.0
+takeover_replication_factor: 3
+takeover_role_version: v2.3.0

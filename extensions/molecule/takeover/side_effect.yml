@@ -1,0 +1,31 @@
+---
+# The collection upgrades the cluster it took over (a minor upgrade, one node at a time), and
+# refuses a play that still sets the role's variables.
+- name: Upgrade the cluster with the collection
+  hosts: takeover_cluster
+  become: true
+  roles:
+    - role: eyebrowkang.garage.node
+      vars:
+        garage_node_version: v2.6.0
+
+- name: Refuse the role's variables
+  hosts: takeover_solo
+  become: true
+  tasks:
+    - name: Run the node role with a variable of the role
+      block:
+        - name: Run the node role with garage_version set
+          ansible.builtin.include_role:
+            name: eyebrowkang.garage.node
+          vars:
+            garage_version: v2.6.0
+
+        - name: Unreachable
+          ansible.builtin.fail:
+            msg: The node role ran with garage_version set.
+      rescue:
+        - name: Check the failure names the variable
+          ansible.builtin.assert:
+            that: "'garage_version' in ansible_failed_result.msg and 'eyebrowkang.garage role' in ansible_failed_result.msg"
+            fail_msg: "Unexpected failure: {{ ansible_failed_result.msg | default(ansible_failed_result) }}"

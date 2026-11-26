@@ -1,0 +1,65 @@
+---
+# The role's own variables, as a play of its users would set them. The role is the clone of a
+# release, so it's included by its path.
+- name: Install Garage v2.2.0 with the role  # noqa: role-name[path]
+  ansible.builtin.include_role:
+    name: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/ansible-role-garage"
+  vars:
+    garage_version: v2.2.0
+    garage_rpc_secret: "{{ garage_node_rpc_secret }}"
+    garage_replication_factor: "{{ takeover_replication_factor }}"
+    garage_cluster_connect: true
+    garage_layout_init: true
+    garage_layout_zone: "{{ garage_cluster_zone }}"
+    garage_layout_capacity: "{{ garage_cluster_capacity }}"
+
+# The role's upgrade restarts every node at once. Garage saves a node's peers every minute:
+# wait for it, as days between installing and upgrading would.
+- name: Wait until the node has saved its peers
+  ansible.builtin.slurp:
+    src: /var/lib/garage/meta/peer_list
+  register: prepare_peer_list
+  until: (prepare_peer_list.content | eyebrowkang.garage.garage_peer_list_count) >= ansible_play_hosts | length - 1
+  retries: 45
+  delay: 2
+
+- name: Upgrade with the role  # noqa: role-name[path]
+  ansible.builtin.include_role:
+    name: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/ansible-role-garage"
+  vars:
+    garage_version: "{{ takeover_role_version }}"
+    garage_upgrade: true
+    garage_rpc_secret: "{{ garage_node_rpc_secret }}"
+    garage_replication_factor: "{{ takeover_replication_factor }}"
+
+- name: Ask the node for its ID
+  ansible.builtin.command: /usr/local/bin/garage --config /etc/garage/garage.toml node id -q
+  register: prepare_node_id
+  changed_when: false
+
+- name: Record the node's ID
+  ansible.builtin.copy:
+    content: "{{ prepare_node_id.stdout | eyebrowkang.garage.garage_node_id }}\n"
+    dest: /root/takeover-node-id
+    mode: "0600"
+
+- name: Wait for the cluster to be healthy
+  ansible.builtin.command: /usr/local/bin/garage --config /etc/garage/garage.toml json-api GetClusterHealth
+  register: prepare_health
+  changed_when: false
+  until: (prepare_health.stdout | from_json).status == 'healthy'
+  retries: 30
+  delay: 2
+  run_once: true
+
+- name: Create a bucket
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/garage
+      - --config
+      - /etc/garage/garage.toml
+      - json-api
+      - CreateBucket
+      - '{"globalAlias": "takeover-probe"}'
+  changed_when: true
+  run_once: true

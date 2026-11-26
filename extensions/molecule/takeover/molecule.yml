@@ -1,0 +1,65 @@
+---
+# Taking over from the eyebrowkang.garage role (docs/design.md, "Taking over a host from the
+# role"). prepare deploys with the role (v1.4.0): a three-node cluster and a single node,
+# upgraded once by the role so it leaves its garage.bak. converge takes them over: the
+# cluster at the same version, the single node with an upgrade in the same run. side_effect
+# then upgrades the cluster with the collection, and checks the role's variables are
+# refused. verify checks the nodes kept their identity, layout and buckets.
+dependency:
+  name: galaxy
+  enabled: false
+
+driver:
+  name: default
+  options:
+    managed: true
+
+platforms:
+  - name: garage-takeover-1
+    image: &image "${MOLECULE_IMAGE:-geerlingguy/docker-debian13-ansible:latest}"
+    systemd: true
+    groups: &cluster [garage_nodes, takeover_cluster, docker_instances]
+  - name: garage-takeover-2
+    image: *image
+    systemd: true
+    groups: *cluster
+  - name: garage-takeover-3
+    image: *image
+    systemd: true
+    groups: *cluster
+  - name: garage-takeover-solo
+    image: *image
+    systemd: true
+    groups: [garage_nodes, takeover_solo, docker_instances]
+
+provisioner:
+  name: ansible
+  playbooks:
+    create: ../default/create.yml
+    destroy: ../default/destroy.yml
+    prepare: prepare.yml
+    converge: converge.yml
+    side_effect: side_effect.yml
+    verify: verify.yml
+  inventory:
+    links:
+      group_vars: inventory/group_vars/
+      host_vars: inventory/host_vars/
+
+verifier:
+  name: ansible
+
+scenario:
+  name: takeover
+  test_sequence:
+    - destroy
+    - syntax
+    - create
+    - prepare
+    # The takeover in check mode first, as the migration guide asks: it must run through.
+    - check
+    - converge
+    - idempotence
+    - side_effect
+    - verify
+    - destroy

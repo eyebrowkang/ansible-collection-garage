@@ -9,7 +9,7 @@
     fail_msg: >-
       These variables belong to the eyebrowkang.garage role, which this collection replaces,
       and the collection doesn't read them: {{ found | join(', ') }}. Translate them into
-      the node role's variables (see the collection's migration guide), then remove them.
+      the node role's variables (docs/migrating-from-the-role.md in the collection), then remove them.
     quiet: true
 
 - name: Check the platform

@@ -11,6 +11,7 @@ cluster on systemd hosts.
 > stays the way to deploy Garage until then.
 
 What the collection does, and what it doesn't on purpose: [docs/design.md](docs/design.md).
+Moving hosts the role deployed: [docs/migrating-from-the-role.md](docs/migrating-from-the-role.md).
 
 ## Roles
 
