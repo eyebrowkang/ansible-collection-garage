@@ -1,0 +1,16 @@
+---
+# The collection takes over what the role deployed: the cluster at the same version, the
+# single node with an upgrade in the same run.
+- name: Take over the cluster
+  hosts: takeover_cluster
+  become: true
+  roles:
+    - role: eyebrowkang.garage.node
+    - role: eyebrowkang.garage.cluster
+
+- name: Take over and upgrade the single node
+  hosts: takeover_solo
+  become: true
+  roles:
+    - role: eyebrowkang.garage.node
+    - role: eyebrowkang.garage.cluster

@@ -1,0 +1,62 @@
+---
+# The collection upgrades the cluster it took over (a minor upgrade, one node at a time), and
+# refuses a play that still sets the role's variables.
+- name: Upgrade the cluster with the collection
+  hosts: takeover_cluster
+  become: true
+  roles:
+    - role: eyebrowkang.garage.node
+      vars:
+        garage_node_version: v2.6.0
+
+- name: Refuse the role's variables
+  hosts: takeover_solo
+  become: true
+  tasks:
+    - name: Run the node role with a variable of the role
+      block:
+        - name: Run the node role with garage_version set
+          ansible.builtin.include_role:
+            name: eyebrowkang.garage.node
+          vars:
+            garage_version: v2.6.0
+
+        - name: Unreachable
+          ansible.builtin.fail:
+            msg: The node role ran with garage_version set.
+      rescue:
+        - name: Check the failure names the variable
+          ansible.builtin.assert:
+            that: "'garage_version' in ansible_failed_result.msg and 'eyebrowkang.garage role' in ansible_failed_result.msg"
+            fail_msg: "Unexpected failure: {{ ansible_failed_result.msg | default(ansible_failed_result) }}"
+
+- name: Refuse a node deployed with another group
+  hosts: takeover_solo
+  become: true
+  tasks:
+    - name: Make the unit the role's with garage_group changed
+      ansible.builtin.replace:
+        path: /etc/systemd/system/garage.service
+        regexp: '^Group=garage$'
+        replace: Group=staff
+
+    - name: Run the node role on it
+      block:
+        - name: Run the node role
+          ansible.builtin.include_role:
+            name: eyebrowkang.garage.node
+
+        - name: Unreachable
+          ansible.builtin.fail:
+            msg: The node role took over a node deployed with another group.
+      rescue:
+        - name: Check the failure names the role's variables
+          ansible.builtin.assert:
+            that: "'garage_group' in ansible_failed_result.msg"
+            fail_msg: "Unexpected failure: {{ ansible_failed_result.msg | default(ansible_failed_result) }}"
+
+    - name: Put the unit back
+      ansible.builtin.replace:
+        path: /etc/systemd/system/garage.service
+        regexp: '^Group=staff$'
+        replace: Group=garage

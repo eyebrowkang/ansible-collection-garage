@@ -1,0 +1,75 @@
+---
+# What the role deployed survived the takeover: each node's ID, the layout, the bucket. What
+# the role left is gone, and the nodes run the collection's files.
+- name: Verify
+  hosts: all
+  become: true
+  tasks:
+    - name: Read the node's ID before the takeover
+      ansible.builtin.slurp:
+        src: /root/takeover-node-id
+      register: verify_id_before
+
+    - name: Ask the node for its ID now
+      ansible.builtin.command: /usr/local/bin/garage --config /etc/garage/garage.toml node id -q
+      register: verify_id
+      changed_when: false
+
+    - name: Check the node kept its identity
+      ansible.builtin.assert:
+        that: (verify_id.stdout | eyebrowkang.garage.garage_node_id) == (verify_id_before.content | b64decode | trim)
+
+    - name: Ask the binary for its version
+      ansible.builtin.command: /usr/local/bin/garage --version
+      register: verify_version
+      changed_when: false
+
+    - name: Check the version
+      ansible.builtin.assert:
+        that: (verify_version.stdout | eyebrowkang.garage.garage_version) == 'v2.6.0'
+
+    - name: Ask for the cluster's status
+      ansible.builtin.command: /usr/local/bin/garage --config /etc/garage/garage.toml json-api GetClusterStatus
+      register: verify_status
+      changed_when: false
+
+    - name: Ask for the bucket
+      ansible.builtin.command:
+        argv: [/usr/local/bin/garage, --config, /etc/garage/garage.toml, json-api, GetBucketInfo, '{"globalAlias": "takeover-probe"}']
+      register: verify_bucket
+      changed_when: false
+
+    - name: Check the layout is the role's and the bucket is there
+      vars:
+        status: "{{ verify_status.stdout | from_json }}"
+        expected: "{{ 3 if 'takeover_cluster' in group_names else 1 }}"
+      ansible.builtin.assert:
+        that:
+          - status.layoutVersion == 1
+          - status.nodes | selectattr('isUp') | list | length == expected | int
+          - (verify_bucket.stdout | from_json).globalAliases == ['takeover-probe']
+        fail_msg: "{{ status | to_json }} {{ verify_bucket.stdout }}"
+
+    - name: Look for what the role left
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop: [/etc/garage/garage.env, /usr/local/bin/garage.bak]
+      register: verify_leftovers
+
+    - name: Check it's gone
+      ansible.builtin.assert:
+        that: verify_leftovers.results | selectattr('stat.exists') | list | length == 0
+
+    - name: Read garage.toml
+      ansible.builtin.slurp:
+        src: /etc/garage/garage.toml
+      register: verify_config
+
+    - name: Check garage.toml is the collection's, with the secret in a file
+      vars:
+        text: "{{ verify_config.content | b64decode }}"
+      ansible.builtin.assert:
+        that:
+          - "'eyebrowkang.garage collection' in text"
+          - (text | eyebrowkang.garage.from_toml).rpc_secret is not defined
+          - (text | eyebrowkang.garage.from_toml).rpc_secret_file == '/etc/garage/secrets/rpc_secret'

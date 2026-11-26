@@ -1,0 +1,7 @@
+---
+# The single node is taken over and upgraded in the same run.
+garage_node_version: v2.6.0
+takeover_replication_factor: 1
+takeover_role_version: v2.3.0
+garage_cluster_zone: dc1
+garage_cluster_capacity: 1G

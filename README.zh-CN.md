@@ -10,7 +10,8 @@
 > [`eyebrowkang.garage` role](https://github.com/eyebrowkang/ansible-role-garage) 的继任者；在此之前，
 > 部署 Garage 仍请使用该 role。
 
-本 collection 做什么、有意不做什么：[docs/design.zh-CN.md](docs/design.zh-CN.md)。
+本 collection 做什么、有意不做什么：[docs/design.zh-CN.md](docs/design.zh-CN.md)。迁移 role 部署的主机：
+[docs/migrating-from-the-role.zh-CN.md](docs/migrating-from-the-role.zh-CN.md)。
 
 ## 包含的 role
 

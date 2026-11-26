@@ -1,0 +1,30 @@
+---
+# Deploys with the eyebrowkang.garage role, v1.4.0, as its users did: v2.2.0, then the role's
+# own upgrade to v2.3.0 (which leaves garage.bak). Then records what must survive the
+# takeover: each node's ID, and a bucket.
+- name: Fetch the eyebrowkang.garage role
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Clone the role at v1.4.0
+      ansible.builtin.git:
+        repo: https://github.com/eyebrowkang/ansible-role-garage.git
+        version: v1.4.0
+        dest: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/ansible-role-garage"
+        depth: 1
+        single_branch: true
+
+# One play per group: the role connects and lays out the hosts of its play.
+- name: Deploy the cluster with the role
+  hosts: takeover_cluster
+  become: true
+  tasks:
+    - name: Deploy with the role
+      ansible.builtin.import_tasks: tasks/prepare_role.yml
+
+- name: Deploy the single node with the role
+  hosts: takeover_solo
+  become: true
+  tasks:
+    - name: Deploy with the role
+      ansible.builtin.import_tasks: tasks/prepare_role.yml

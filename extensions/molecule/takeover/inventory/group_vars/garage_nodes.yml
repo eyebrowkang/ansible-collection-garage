@@ -1,0 +1,11 @@
+---
+# The collection's variables for the nodes the role deployed: the same directories, the same
+# RPC secret. Only the collection's variables are here - prepare gives the role its own.
+# A fixed test-only secret (openssl rand -hex 32); never use it outside molecule.
+garage_node_rpc_secret: 4b1e9d0c7a6f5e4d3c2b1a09f8e7d6c5b4a3928170f6e5d4c3b2a1908f7e6d5c
+garage_node_settings:
+  metadata_dir: /var/lib/garage/meta
+  data_dir: /var/lib/garage/data
+  db_engine: lmdb
+  replication_factor: "{{ takeover_replication_factor }}"
+  rpc_public_addr: "{{ ansible_default_ipv4.address }}:3901"
