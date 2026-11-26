@@ -114,7 +114,8 @@ Guarantees:
   set; the RPC secret is 32 bytes of hex; settings that need a newer Garage than
   `garage_node_version` (such as `[s3_api] public_endpoint` before v2.5.0) are refused,
   because older releases silently ignore them.
-- `garage.toml` and the secret files are `root:garage`, mode `0640`.
+- `garage.toml` is `root:garage`, mode `0640`. The secret files are `garage:garage`, mode
+  `0600`: Garage refuses to start on a secret file others can read.
 - The unit's writable paths and required mounts follow `metadata_dir` and `data_dir`.
 
 Limits:

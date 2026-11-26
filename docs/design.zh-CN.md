@@ -94,7 +94,8 @@ Garage v3 正式发布时，collection 发布 1.0，并且 1.0 能把集群从 v
   `rpc_bind_addr` 和 `[admin]` 的 `api_bind_addr` 已设置；RPC 密钥是 32 字节的十六进制；需要比
   `garage_node_version` 更新的 Garage 才支持的选项（例如 v2.5.0 之前的 `[s3_api] public_endpoint`）
   会被拒绝，因为旧版本会静默忽略它们。
-- `garage.toml` 和密钥文件属于 `root:garage`，权限 `0640`。
+- `garage.toml` 属于 `root:garage`，权限 `0640`。密钥文件属于 `garage:garage`，权限 `0600`：密钥文件能被
+  其他用户读取时，Garage 拒绝启动。
 - unit 的可写路径和依赖的挂载点跟随 `metadata_dir` 和 `data_dir`。
 
 限制：
