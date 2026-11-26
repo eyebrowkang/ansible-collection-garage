@@ -12,6 +12,15 @@
       the collection's variables (docs/migrating-from-the-role.md in the collection), then remove them.
     quiet: true
 
+- name: Check the play isn't split in batches
+  ansible.builtin.assert:
+    that: ansible_play_batch | length == ansible_play_hosts_all | length
+    fail_msg: >-
+      The cluster's nodes are the play's hosts: run the cluster role without serial (this batch
+      has {{ ansible_play_batch | length }} of the play's {{ ansible_play_hosts_all | length }} hosts).
+    quiet: true
+  run_once: true
+
 - name: Check this node's layout role
   vars:
     problems: >-

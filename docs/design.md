@@ -227,9 +227,11 @@ Limits:
 
 Guarantees:
 
-- `node` with `absent` stops and disables Garage, and removes the binary, the unit,
-  `/etc/garage/` (`garage.toml` and the secret files) and the `garage` user.
-- `metadata_dir` and `data_dir` stay.
+- `node` with `absent` stops and disables Garage, and removes the binary, the unit and
+  `/etc/garage/` (`garage.toml` and the secret files).
+- `metadata_dir` and `data_dir` stay, and so do the `garage` user and group that own them:
+  a user created again could get other IDs, and a reinstalled node couldn't read what it
+  kept.
 
 Limits:
 

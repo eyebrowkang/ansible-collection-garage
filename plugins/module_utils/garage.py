@@ -360,15 +360,28 @@ def role_problems(zone, capacity, gateway, tags):
     return problems
 
 
+# GetClusterHealth's status, from worst to best: unavailable lacks quorum on some partitions,
+# degraded keeps quorum everywhere with nodes down.
+_HEALTH_RANK = {"unavailable": 0, "degraded": 1, "healthy": 2}
+
+
+def _storage_nodes_up(health):
+    # storageNodesOk in Garage v2.0, storageNodesUp later.
+    return health.get("storageNodesUp", health.get("storageNodesOk", 0))
+
+
 def health_regressions(health, floor):
     """How a GetClusterHealth result is worse than an earlier one (the floor), as messages
     (empty: at least as healthy). An empty floor asks only for an answer."""
     regressions = []
-    for key, what in (("connectedNodes", "connected nodes"), ("storageNodesUp", "storage nodes up")):
-        if key in floor and health.get(key, 0) < floor[key]:
-            regressions.append("%d %s, %d before" % (health.get(key, 0), what, floor[key]))
-    if floor.get("status") == "healthy" and health.get("status") != "healthy":
-        regressions.append("the cluster is %s, it was healthy" % health.get("status"))
+    if "connectedNodes" in floor and health.get("connectedNodes", 0) < floor["connectedNodes"]:
+        regressions.append("%d connected nodes, %d before" % (health.get("connectedNodes", 0), floor["connectedNodes"]))
+    if ("storageNodesUp" in floor or "storageNodesOk" in floor) and _storage_nodes_up(health) < _storage_nodes_up(floor):
+        regressions.append("%d storage nodes up, %d before" % (_storage_nodes_up(health), _storage_nodes_up(floor)))
+    if "partitionsQuorum" in floor and health.get("partitionsQuorum", 0) < floor["partitionsQuorum"]:
+        regressions.append("%d partitions with quorum, %d before" % (health.get("partitionsQuorum", 0), floor["partitionsQuorum"]))
+    if "status" in floor and _HEALTH_RANK.get(health.get("status"), 0) < _HEALTH_RANK.get(floor["status"], 0):
+        regressions.append("the cluster is %s, it was %s" % (health.get("status"), floor["status"]))
     return regressions
 
 

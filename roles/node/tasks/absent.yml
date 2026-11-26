@@ -1,7 +1,7 @@
 ---
-# Stops and removes the node: the binary, the unit, /etc/garage and the garage user. The
-# metadata and data directories stay, and so does the user's home, /var/lib/garage
-# (docs/design.md, "Removal").
+# Stops and removes the node: the binary, the unit and /etc/garage. The metadata and data
+# directories stay, and so do the garage user and group that own them: a user created again
+# could get other IDs, and Garage couldn't read what it kept (docs/design.md, "Removal").
 - name: Stop and disable the service
   ansible.builtin.systemd_service:
     name: garage.service
@@ -30,14 +30,3 @@
   ansible.builtin.systemd_service:
     daemon_reload: true
   when: garage_node_removed is changed  # noqa: no-handler
-
-- name: Remove the garage user
-  ansible.builtin.user:
-    name: "{{ garage_node_user }}"
-    state: absent
-    remove: false
-
-- name: Remove the garage group
-  ansible.builtin.group:
-    name: "{{ garage_node_group }}"
-    state: absent
