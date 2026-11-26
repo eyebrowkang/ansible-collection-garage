@@ -14,6 +14,17 @@ garage_node_dropin_path: /etc/systemd/system/garage.service.d/eyebrowkang-garage
 # Where a download waits for its checks (it runs once from there: not /tmp, which may be
 # noexec).
 garage_node_download_parent: /var/tmp
+# The command that reaches the local node over RPC, with only the RPC secret.
+garage_node_garage:
+  - "{{ garage_node_binary_path }}"
+  - --config
+  - "{{ garage_node_config_path }}"
+# How long a started or restarted node has to be back as healthy as before: 2 minutes.
+garage_node_wait_retries: 60
+garage_node_wait_delay: 2
+# Garage saves a node's peers every minute: wait a little longer than that.
+garage_node_peers_retries: 45
+
 # The first line of the files the role writes, so a takeover tells them from the role's.
 garage_node_marker: "Managed by the eyebrowkang.garage collection (node role)"
 

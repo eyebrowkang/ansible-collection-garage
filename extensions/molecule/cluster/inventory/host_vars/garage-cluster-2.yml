@@ -1,0 +1,4 @@
+---
+garage_cluster_zone: dc2
+garage_cluster_capacity: 1G
+garage_cluster_tags: [molecule]

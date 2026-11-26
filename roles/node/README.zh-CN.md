@@ -47,8 +47,7 @@ role 写成 TOML。
 
 - 它合并在 role 的默认值之上：`rpc_bind_addr` `[::]:3901`、`s3_api.api_bind_addr` `[::]:3900`、
   `s3_api.s3_region` `garage` 和 `admin.api_bind_addr` `[::]:3903`。
-- `metadata_dir`、`data_dir` 和 `replication_factor` 必填。`admin.api_bind_addr` 不能去掉：role 通过它
-  检查节点的健康状态。
+- `metadata_dir`、`data_dir` 和 `replication_factor` 必填。
 - 密钥不是配置项：`rpc_secret`、`admin.admin_token`、`admin.metrics_token` 以及它们的 `*_file` 键都会被
   拒绝。role 把密钥写入文件，并自己设置 `*_file` 键。
 - 比 `garage_node_version` 更新的配置项会被拒绝，例如 v2.5.0 之前的 `s3_api.public_endpoint`：旧版本会
@@ -68,7 +67,8 @@ role 写成 TOML。
 ## 重启
 
 运行中的节点为它所有的变更只重启一次：二进制、配置、密钥、unit。play 中的节点一次重启一个，每个节点
-恢复到重启前的健康状态后，下一个节点才会停止：报告过 quorum（`/health`）的节点必须再次报告。见
+恢复到重启前的健康程度后，下一个节点才会停止（以 Garage 通过 RPC 报告的为准：连接的节点数、在线的存储
+节点数都不少于重启前，重启前集群健康的，现在也要健康）。见
 [docs/design.zh-CN.md](../../docs/design.zh-CN.md) 的「重启」。
 
 ## 移除

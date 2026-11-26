@@ -1,0 +1,68 @@
+---
+# The first layout, from the first host of the play, when the cluster has none (version 0).
+# A cluster that has a layout is never changed (docs/design.md, "Cluster bootstrap").
+- name: Read the cluster's layout
+  ansible.builtin.command:
+    argv: "{{ garage_cluster_garage + ['json-api', 'GetClusterLayout'] }}"
+  register: garage_cluster_layout
+  changed_when: false
+  check_mode: false
+  run_once: true
+
+- name: Tell whether the cluster has a layout
+  ansible.builtin.set_fact:
+    garage_cluster_layout_version: "{{ (garage_cluster_layout.stdout | from_json).version }}"
+  run_once: true
+
+- name: Report the first layout
+  ansible.builtin.debug:
+    msg: "Would apply the first layout, with {{ ansible_play_hosts | join(', ') }}."
+  changed_when: true
+  run_once: true
+  when:
+    - garage_cluster_layout_version | int == 0
+    - ansible_check_mode
+
+- name: Apply the first layout
+  when:
+    - garage_cluster_layout_version | int == 0
+    - not ansible_check_mode
+  run_once: true
+  block:
+    - name: Wait until the first node sees every node of the play up
+      vars:
+        nodes: "{{ ansible_play_hosts | map('extract', hostvars) | list }}"
+        wanted: "{{ dict(nodes | map(attribute='garage_cluster_node_id') | zip(nodes | map(attribute='garage_cluster_node_addr'))) }}"
+      ansible.builtin.command:
+        argv: "{{ garage_cluster_garage + ['json-api', 'GetClusterStatus'] }}"
+      register: garage_cluster_first_status
+      changed_when: false
+      until: >-
+        garage_cluster_first_status.rc == 0
+        and (garage_cluster_first_status.stdout | from_json
+             | eyebrowkang.garage.garage_nodes_not_up(wanted) | length == 0)
+      retries: "{{ garage_cluster_wait_retries }}"
+      delay: "{{ garage_cluster_wait_delay }}"
+
+    - name: Stage every node's role
+      vars:
+        staged: >-
+          {{ ansible_play_hosts | map('extract', hostvars, 'garage_cluster_node_role') | list
+             | eyebrowkang.garage.garage_layout_roles }}
+      ansible.builtin.command:
+        argv: "{{ garage_cluster_garage + ['json-api', 'UpdateClusterLayout', staged | to_json] }}"
+      changed_when: true
+
+    - name: Apply layout version 1
+      ansible.builtin.command:
+        argv: "{{ garage_cluster_garage + ['json-api', 'ApplyClusterLayout', {'version': 1} | to_json] }}"
+      changed_when: true
+
+    - name: Wait until the cluster is healthy
+      ansible.builtin.command:
+        argv: "{{ garage_cluster_garage + ['json-api', 'GetClusterHealth'] }}"
+      register: garage_cluster_health
+      changed_when: false
+      until: garage_cluster_health.rc == 0 and (garage_cluster_health.stdout | from_json).status == 'healthy'
+      retries: "{{ garage_cluster_wait_retries }}"
+      delay: "{{ garage_cluster_wait_delay }}"

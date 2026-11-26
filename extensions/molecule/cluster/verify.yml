@@ -1,0 +1,53 @@
+---
+# The cluster from each node's view: every node up, the first layout applied with each node's
+# role, and the cluster healthy.
+- name: Verify
+  hosts: all
+  become: true
+  tasks:
+    - name: Ask the node for the cluster's status
+      ansible.builtin.command: /usr/local/bin/garage --config /etc/garage/garage.toml json-api GetClusterStatus
+      register: verify_status
+      changed_when: false
+
+    - name: Check this node sees every node up, in layout version 1
+      vars:
+        status: "{{ verify_status.stdout | from_json }}"
+      ansible.builtin.assert:
+        that:
+          - status.layoutVersion == 1
+          - status.nodes | length == 4
+          - status.nodes | selectattr('isUp') | list | length == 4
+        fail_msg: "{{ status | to_json }}"
+
+    - name: Ask the node for the layout
+      ansible.builtin.command: /usr/local/bin/garage --config /etc/garage/garage.toml json-api GetClusterLayout
+      register: verify_layout
+      changed_when: false
+      run_once: true
+
+    - name: Check each node's role
+      vars:
+        layout_roles: "{{ (verify_layout.stdout | from_json).roles }}"
+      ansible.builtin.assert:
+        that:
+          - layout_roles | length == 4
+          - layout_roles | selectattr('capacity', 'equalto', 1000000000) | list | length == 3
+          - layout_roles | selectattr('capacity', 'none') | list | length == 1
+          - layout_roles | map(attribute='zone') | unique | sort == ['dc1', 'dc2', 'dc3']
+        fail_msg: "{{ layout_roles | to_json }}"
+      run_once: true
+
+    - name: Ask the node for the cluster's health
+      ansible.builtin.command: /usr/local/bin/garage --config /etc/garage/garage.toml json-api GetClusterHealth
+      register: verify_health
+      changed_when: false
+
+    - name: Check the cluster is healthy
+      vars:
+        health: "{{ verify_health.stdout | from_json }}"
+      ansible.builtin.assert:
+        that:
+          - health.status == 'healthy'
+          - health.partitionsAllOk == health.partitions
+        fail_msg: "{{ health | to_json }}"

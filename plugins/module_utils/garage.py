@@ -200,12 +200,6 @@ def settings_problems(settings, version):
     for key in ("metadata_dir", "data_dir", "replication_factor", "rpc_bind_addr"):
         if key not in settings:
             problems.append("garage_node_settings.%s is required." % key)
-    admin = settings.get("admin")
-    if not isinstance(admin, dict) or "api_bind_addr" not in admin:
-        problems.append(
-            "garage_node_settings.admin.api_bind_addr is required: the role checks the"
-            " node's health through it."
-        )
 
     if "metadata_dir" in settings and not _absolute(settings["metadata_dir"]):
         problems.append("garage_node_settings.metadata_dir must be an absolute path.")
@@ -272,3 +266,138 @@ def changed_identity_dirs(existing, settings):
     if sorted(data_dirs(existing)) != sorted(data_dirs(settings)):
         changed.append("data_dir")
     return changed
+
+
+# ---- the cluster ---------------------------------------------------------------------------
+
+# bytesize's units, as Garage's CLI reads a capacity: decimal, or binary with "i"; any case;
+# "b" alone is bytes.
+_CAPACITY_RE = re.compile(r"^\s*([0-9]+(?:\.[0-9]+)?)\s*([kmgtp]?)(i?)(b?)\s*$", re.IGNORECASE)
+_CAPACITY_POWER = {"": 0, "k": 1, "m": 2, "g": 3, "t": 4, "p": 5}
+
+
+def parse_capacity(value):
+    """A layout capacity in bytes: an integer, or a size such as "1T", "500GB", "1.5TiB"."""
+    if isinstance(value, bool):
+        raise ValueError("a capacity is a size, not %r" % (value,))
+    if isinstance(value, int):
+        if value <= 0:
+            raise ValueError("a capacity must be positive, not %d" % value)
+        return value
+    match = _CAPACITY_RE.match(str(value))
+    if not match:
+        raise ValueError("%r is not a size such as 1T, 500G or 1.5TiB" % (value,))
+    number, prefix, binary, _bytes = match.groups()
+    if binary and not prefix:
+        raise ValueError("%r is not a size such as 1T, 500G or 1.5TiB" % (value,))
+    base = 1024 if binary else 1000
+    size = int(float(number) * base ** _CAPACITY_POWER[prefix.lower()])
+    if size <= 0:
+        raise ValueError("a capacity must be positive, not %r" % (value,))
+    return size
+
+
+def node_id(text):
+    """The full node ID in `garage node id -q` output ("<64 hex>[@<addr>]")."""
+    match = re.search(r"\b([0-9a-f]{64})\b", text or "")
+    return match.group(1) if match else None
+
+
+def node_address(status, node):
+    """The RPC address a node reports for itself in GetClusterStatus, or None."""
+    for entry in status.get("nodes", []):
+        if entry.get("id") == node:
+            return entry.get("addr")
+    return None
+
+
+def nodes_to_connect(status, wanted):
+    """The "<id>@<addr>" of the wanted nodes ({id: addr}) this node doesn't see up."""
+    up = {entry.get("id") for entry in status.get("nodes", []) if entry.get("isUp")}
+    return ["%s@%s" % (node, addr) for node, addr in sorted(wanted.items()) if node not in up]
+
+
+def nodes_not_up(status, wanted):
+    """The wanted node IDs this node doesn't see up."""
+    up = {entry.get("id") for entry in status.get("nodes", []) if entry.get("isUp")}
+    return sorted(node for node in wanted if node not in up)
+
+
+def layout_roles(nodes):
+    """The UpdateClusterLayout roles for the first layout.
+
+    nodes: [{id, zone, capacity, gateway, tags}] - a gateway has no capacity.
+    """
+    roles = []
+    for node in nodes:
+        roles.append({
+            "id": node["id"],
+            "zone": node["zone"],
+            "capacity": None if node.get("gateway") else parse_capacity(node["capacity"]),
+            "tags": list(node.get("tags") or []),
+        })
+    return {"roles": sorted(roles, key=lambda role: role["id"])}
+
+
+def role_problems(zone, capacity, gateway, tags):
+    """What's wrong with a node's layout role, as messages (empty: fine)."""
+    problems = []
+    if not isinstance(zone, str) or not zone:
+        problems.append("garage_cluster_zone is required: the zone of this node's layout role.")
+    has_capacity = capacity not in (None, "")
+    if bool(gateway) == has_capacity:
+        problems.append(
+            "Set either garage_cluster_capacity (a storage node) or garage_cluster_gateway:"
+            " true (a gateway node), not both and not neither."
+        )
+    elif has_capacity:
+        try:
+            parse_capacity(capacity)
+        except ValueError as error:
+            problems.append("garage_cluster_capacity: %s." % error)
+    if not isinstance(tags, (list, tuple)) or not all(isinstance(t, str) and t for t in tags):
+        problems.append("garage_cluster_tags must be a list of non-empty strings.")
+    return problems
+
+
+# GetClusterHealth's status, from worst to best: unavailable lacks quorum on some partitions,
+# degraded keeps quorum everywhere with nodes down.
+_HEALTH_RANK = {"unavailable": 0, "degraded": 1, "healthy": 2}
+
+
+def _storage_nodes_up(health):
+    # storageNodesOk in Garage v2.0, storageNodesUp later.
+    return health.get("storageNodesUp", health.get("storageNodesOk", 0))
+
+
+def health_regressions(health, floor):
+    """How a GetClusterHealth result is worse than an earlier one (the floor), as messages
+    (empty: at least as healthy). An empty floor asks only for an answer."""
+    regressions = []
+    if "connectedNodes" in floor and health.get("connectedNodes", 0) < floor["connectedNodes"]:
+        regressions.append("%d connected nodes, %d before" % (health.get("connectedNodes", 0), floor["connectedNodes"]))
+    if ("storageNodesUp" in floor or "storageNodesOk" in floor) and _storage_nodes_up(health) < _storage_nodes_up(floor):
+        regressions.append("%d storage nodes up, %d before" % (_storage_nodes_up(health), _storage_nodes_up(floor)))
+    if "partitionsQuorum" in floor and health.get("partitionsQuorum", 0) < floor["partitionsQuorum"]:
+        regressions.append("%d partitions with quorum, %d before" % (health.get("partitionsQuorum", 0), floor["partitionsQuorum"]))
+    if "status" in floor and _HEALTH_RANK.get(health.get("status"), 0) < _HEALTH_RANK.get(floor["status"], 0):
+        regressions.append("the cluster is %s, it was %s" % (health.get("status"), floor["status"]))
+    return regressions
+
+
+def peer_list_count(data):
+    """How many peers a node's saved peer list (metadata_dir/peer_list) holds.
+
+    Garage saves it as a MessagePack array of (node ID, address), every minute: a node
+    restarted before its peers are saved doesn't find them again.
+    """
+    if not data:
+        return 0
+    head = data[0]
+    if 0x90 <= head <= 0x9F:
+        return head & 0x0F
+    if head == 0xDC and len(data) >= 3:
+        return int.from_bytes(data[1:3], "big")
+    if head == 0xDD and len(data) >= 5:
+        return int.from_bytes(data[1:5], "big")
+    raise ValueError("not a saved peer list (first byte 0x%02x)" % head)

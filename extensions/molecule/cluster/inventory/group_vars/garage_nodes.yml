@@ -1,0 +1,10 @@
+---
+# The cluster's test variables (provisioner.inventory.links): the zones and roles are per
+# node, in host_vars/.
+garage_node_version: v2.6.0
+# A fixed test-only secret (openssl rand -hex 32); never use it outside molecule.
+garage_node_rpc_secret: 8d2f2a77c3a1b0e8f5f6c1d4a9e3b7c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6
+garage_node_settings:
+  metadata_dir: /var/lib/garage/meta
+  data_dir: /var/lib/garage/data
+  replication_factor: 3

@@ -1,0 +1,88 @@
+---
+# Every check runs before anything changes. The probes are read-only, so they run in check
+# mode too.
+- name: Check no variable of the eyebrowkang.garage role is set
+  vars:
+    found: "{{ garage_cluster_role_variables | select('in', query('ansible.builtin.varnames', '^garage_')) | list }}"
+  ansible.builtin.assert:
+    that: found | length == 0
+    fail_msg: >-
+      These variables belong to the eyebrowkang.garage role, which this collection replaces,
+      and the collection doesn't read them: {{ found | join(', ') }}. Translate them into
+      the collection's variables (see the collection's migration guide), then remove them.
+    quiet: true
+
+- name: Check the play isn't split in batches
+  ansible.builtin.assert:
+    that: ansible_play_batch | length == ansible_play_hosts_all | length
+    fail_msg: >-
+      The cluster's nodes are the play's hosts: run the cluster role without serial (this batch
+      has {{ ansible_play_batch | length }} of the play's {{ ansible_play_hosts_all | length }} hosts).
+    quiet: true
+  run_once: true
+
+- name: Check this node's layout role
+  vars:
+    problems: >-
+      {{ garage_cluster_zone | eyebrowkang.garage.garage_role_problems(garage_cluster_capacity,
+         garage_cluster_gateway, garage_cluster_tags) }}
+  ansible.builtin.assert:
+    that: problems | length == 0
+    fail_msg: "{{ problems | join(' ') }}"
+    quiet: true
+
+- name: Ask the node for its ID
+  ansible.builtin.command:
+    argv: "{{ garage_cluster_garage + ['node', 'id', '-q'] }}"
+  register: garage_cluster_id
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Ask the node for the cluster's status
+  ansible.builtin.command:
+    argv: "{{ garage_cluster_garage + ['json-api', 'GetClusterStatus'] }}"
+  register: garage_cluster_status
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Check the node runs
+  ansible.builtin.assert:
+    that:
+      - garage_cluster_id.rc == 0
+      - garage_cluster_status.rc == 0
+    fail_msg: >-
+      The Garage node on this host doesn't answer (run the node role first):
+      {{ (garage_cluster_id.stderr or garage_cluster_status.stderr) | default('') | trim }}
+    quiet: true
+
+- name: Gather the node's ID and address
+  vars:
+    status: "{{ garage_cluster_status.stdout | from_json }}"
+    node: "{{ garage_cluster_id.stdout | eyebrowkang.garage.garage_node_id }}"
+  ansible.builtin.set_fact:
+    garage_cluster_node_id: "{{ node }}"
+    garage_cluster_node_addr: "{{ status | eyebrowkang.garage.garage_node_address(node) }}"
+    # A fact, so the first host reads every node's role through hostvars.
+    garage_cluster_node_role:
+      id: "{{ node }}"
+      zone: "{{ garage_cluster_zone }}"
+      capacity: "{{ garage_cluster_capacity }}"
+      gateway: "{{ garage_cluster_gateway | bool }}"
+      tags: "{{ garage_cluster_tags }}"
+
+- name: Check the nodes are distinct and reachable
+  vars:
+    ids: "{{ ansible_play_hosts | map('extract', hostvars, 'garage_cluster_node_id') | list }}"
+  ansible.builtin.assert:
+    that:
+      - garage_cluster_node_addr | default('', true) | length > 0
+      - ids | select('equalto', garage_cluster_node_id) | list | length == 1
+    fail_msg: >-
+      {{ 'This node has the same ID as another host of the play: its metadata directory was'
+         ~ ' copied from another node, so Garage sees one node.'
+         if ids | select('equalto', garage_cluster_node_id) | list | length > 1
+         else 'This node doesn\'t know its RPC address: set rpc_public_addr in'
+              ~ ' garage_node_settings.' }}
+    quiet: true

@@ -1,0 +1,16 @@
+---
+minor_changes:
+  - >-
+    cluster - a new role that connects the nodes of the play and applies the first layout when
+    the cluster has none, through the admin API over RPC (``garage json-api``).
+  - >-
+    node - a restarted node must be as healthy as before (``GetClusterHealth`` over RPC) before
+    the next one stops, instead of answering on the admin API's ``/health``.
+  - >-
+    cluster, node - wait until a node has saved its peers before ending a bootstrap or
+    restarting it: Garage saves them every minute, and a node restarted before finds no one
+    (a cluster restarted at once within a minute of its bootstrap stayed apart for good).
+  - >-
+    node - before the next node stops, every other node of the play reaches the restarted one
+    over RPC: a node keeps a dead connection to a restarted peer until it next uses it, and its
+    requests through it fail until then.

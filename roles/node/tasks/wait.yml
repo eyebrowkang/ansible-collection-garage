@@ -1,21 +1,31 @@
 ---
-# Waits for garage_node_target's admin API, then, when garage_node_require_health, for the
-# node to report quorum. Bounded: a node that doesn't come up fails the run.
-- name: Wait for the admin API of {{ garage_node_target }}
-  ansible.builtin.wait_for:
-    host: "{{ omit if hostvars[garage_node_target].garage_node_admin_socket else hostvars[garage_node_target].garage_node_admin_host }}"
-    port: "{{ omit if hostvars[garage_node_target].garage_node_admin_socket else hostvars[garage_node_target].garage_node_admin_port | int }}"
-    path: "{{ hostvars[garage_node_target].garage_node_admin_socket or omit }}"
-    timeout: 60
-  delegate_to: "{{ garage_node_target }}"
-
-- name: Wait for the cluster to be reported healthy by {{ garage_node_target }}
-  ansible.builtin.uri:
-    url: "{{ hostvars[garage_node_target].garage_node_health_url }}"
-    unix_socket: "{{ hostvars[garage_node_target].garage_node_admin_socket or omit }}"
+# Waits until garage_node_target answers over RPC and is at least as healthy as
+# garage_node_health_floor (a GetClusterHealth result; {} for a node that just started).
+# Bounded: a node that doesn't get there fails the run.
+- name: Wait for the cluster to be as healthy as before, seen by {{ garage_node_target }}
+  ansible.builtin.command:
+    argv: "{{ garage_node_garage + ['json-api', 'GetClusterHealth'] }}"
   register: garage_node_health
-  until: garage_node_health.status == 200
-  retries: 30
-  delay: 2
+  changed_when: false
+  failed_when: false
+  until: >-
+    garage_node_health.rc == 0
+    and (garage_node_health.stdout | from_json
+         | eyebrowkang.garage.garage_health_regressions(garage_node_health_floor) | length == 0)
+  retries: "{{ garage_node_wait_retries }}"
+  delay: "{{ garage_node_wait_delay }}"
   delegate_to: "{{ garage_node_target }}"
-  when: garage_node_require_health | bool
+  # Exhausted retries fail the task whatever failed_when says: the check below says why.
+  ignore_errors: true
+
+- name: Check the cluster is as healthy as before, seen by {{ garage_node_target }}
+  ansible.builtin.assert:
+    that: garage_node_health is not failed
+    fail_msg: >-
+      {{ garage_node_target }} isn't back as healthy as before its restart after
+      {{ garage_node_wait_retries | int * garage_node_wait_delay | int }} seconds:
+      {{ (garage_node_health.stdout | from_json
+          | eyebrowkang.garage.garage_health_regressions(garage_node_health_floor) | join('; '))
+         if garage_node_health.rc | default(1) == 0
+         else garage_node_health.stderr | default('it does not answer') }}
+    quiet: true

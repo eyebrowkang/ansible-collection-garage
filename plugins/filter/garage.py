@@ -16,6 +16,15 @@ description:
   - C(garage_node_paths) lists the directories a node writes.
   - C(garage_changed_identity_dirs) lists the identity directories that differ from an
     existing C(garage.toml).
+  - C(garage_node_id) is the node ID in C(garage node id -q) output.
+  - C(garage_node_address) is the RPC address a node reports for itself in C(GetClusterStatus).
+  - C(garage_nodes_to_connect) lists the C(<id>@<addr>) of the wanted nodes a status doesn't see up.
+  - C(garage_nodes_not_up) lists the wanted node IDs a status doesn't see up.
+  - C(garage_layout_roles) is the C(UpdateClusterLayout) request for the first layout.
+  - C(garage_role_problems) lists what's wrong with a node's layout role.
+  - C(garage_peer_list_count) is how many peers a node's saved peer list holds, from its
+    base64 content (slurp).
+  - C(garage_health_regressions) lists how a C(GetClusterHealth) result is worse than an earlier one.
 options:
   _input:
     description: The mapping, the text, or the version the filter works on.
@@ -37,6 +46,7 @@ _value:
   type: raw
 """
 
+import base64
 import tomllib
 
 from ansible.errors import AnsibleFilterError
@@ -104,6 +114,44 @@ def garage_changed_identity_dirs(existing, settings):
     return garage.changed_identity_dirs(_plain(existing), _plain(settings))
 
 
+def garage_node_id(text):
+    return garage.node_id(str(text) if text is not None else "")
+
+
+def garage_node_address(status, node):
+    return garage.node_address(_plain(status), str(node))
+
+
+def garage_nodes_to_connect(status, wanted):
+    return garage.nodes_to_connect(_plain(status), _plain(wanted))
+
+
+def garage_nodes_not_up(status, wanted):
+    return garage.nodes_not_up(_plain(status), _plain(wanted))
+
+
+def garage_layout_roles(nodes):
+    try:
+        return garage.layout_roles(_plain(nodes))
+    except ValueError as error:
+        raise AnsibleFilterError(str(error)) from error
+
+
+def garage_role_problems(zone, capacity, gateway, tags):
+    return garage.role_problems(_plain(zone), _plain(capacity), bool(gateway), _plain(tags))
+
+
+def garage_health_regressions(health, floor):
+    return garage.health_regressions(_plain(health), _plain(floor or {}))
+
+
+def garage_peer_list_count(content):
+    try:
+        return garage.peer_list_count(base64.b64decode(str(content or "")))
+    except ValueError as error:
+        raise AnsibleFilterError(str(error)) from error
+
+
 class FilterModule:
     """Filters for a Garage node."""
 
@@ -117,4 +165,12 @@ class FilterModule:
             "garage_settings_problems": garage_settings_problems,
             "garage_node_paths": garage_node_paths,
             "garage_changed_identity_dirs": garage_changed_identity_dirs,
+            "garage_node_id": garage_node_id,
+            "garage_node_address": garage_node_address,
+            "garage_nodes_to_connect": garage_nodes_to_connect,
+            "garage_nodes_not_up": garage_nodes_not_up,
+            "garage_layout_roles": garage_layout_roles,
+            "garage_role_problems": garage_role_problems,
+            "garage_health_regressions": garage_health_regressions,
+            "garage_peer_list_count": garage_peer_list_count,
         }

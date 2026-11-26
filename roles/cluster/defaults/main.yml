@@ -1,0 +1,8 @@
+---
+# Values only: each variable is described in meta/argument_specs.yml. They're per node: set
+# them in host_vars (or group_vars for nodes alike).
+
+# garage_cluster_zone has no default: it's required.
+garage_cluster_capacity: ""
+garage_cluster_gateway: false
+garage_cluster_tags: []

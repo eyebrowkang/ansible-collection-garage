@@ -128,7 +128,7 @@ def test_settings_fine():
 
 def test_settings_require_the_basics():
     problems = garage.settings_problems({}, "v2.6.0")
-    for key in ("metadata_dir", "data_dir", "replication_factor", "rpc_bind_addr", "admin.api_bind_addr"):
+    for key in ("metadata_dir", "data_dir", "replication_factor", "rpc_bind_addr"):
         assert any("garage_node_settings.%s is required" % key in p for p in problems), key
 
 
@@ -174,3 +174,155 @@ def test_changed_identity_dirs():
     existing = {"metadata_dir": "/m", "data_dir": [{"path": "/a", "capacity": "1T"}, {"path": "/b", "capacity": "1T"}]}
     assert garage.changed_identity_dirs(existing, {"metadata_dir": "/m", "data_dir": [{"path": "/b"}, {"path": "/a"}]}) == []
     assert garage.changed_identity_dirs(existing, {"metadata_dir": "/n", "data_dir": "/a"}) == ["metadata_dir", "data_dir"]
+
+
+# ---- the cluster ---------------------------------------------------------------------------
+
+# Measured with garage v2.0.0's CLI: `layout assign -c <size>`, then GetClusterLayout.
+@pytest.mark.parametrize("value, expected", [
+    ("1T", 1000000000000),
+    ("1TB", 1000000000000),
+    ("1TiB", 1099511627776),
+    ("1t", 1000000000000),
+    ("500G", 500000000000),
+    ("500M", 500000000),
+    ("1.5T", 1500000000000),
+    ("2048", 2048),
+    ("10KiB", 10240),
+    ("10K", 10000),
+    ("1PB", 1000000000000000),
+    ("1Gb", 1000000000),
+    (2048, 2048),
+])
+def test_parse_capacity(value, expected):
+    assert garage.parse_capacity(value) == expected
+
+
+@pytest.mark.parametrize("value", ["1e3", "", "T", "1X", "-1T", "0", 0, True, "1iB"])
+def test_parse_capacity_refuses(value):
+    with pytest.raises(ValueError):
+        garage.parse_capacity(value)
+
+
+NODE_A = "a" * 64
+NODE_B = "b" * 64
+NODE_C = "c" * 64
+
+
+@pytest.mark.parametrize("text, expected", [
+    (NODE_A + "@10.0.0.1:3901\n", NODE_A),
+    (NODE_A + "\n", NODE_A),
+    ("nothing", None),
+])
+def test_node_id(text, expected):
+    assert garage.node_id(text) == expected
+
+
+# GetClusterStatus as garage v2.0.0's json-api prints it (fields trimmed).
+STATUS = {
+    "layoutVersion": 0,
+    "nodes": [
+        {"id": NODE_A, "addr": "10.0.0.1:3901", "isUp": True, "role": None},
+        {"id": NODE_B, "addr": "10.0.0.2:3901", "isUp": False, "role": None},
+    ],
+}
+
+
+def test_node_address():
+    assert garage.node_address(STATUS, NODE_A) == "10.0.0.1:3901"
+    assert garage.node_address(STATUS, NODE_C) is None
+
+
+def test_nodes_to_connect_skips_the_nodes_up():
+    wanted = {NODE_A: "10.0.0.1:3901", NODE_B: "10.0.0.2:3901", NODE_C: "10.0.0.3:3901"}
+    assert garage.nodes_to_connect(STATUS, wanted) == [NODE_B + "@10.0.0.2:3901", NODE_C + "@10.0.0.3:3901"]
+    assert garage.nodes_not_up(STATUS, wanted) == [NODE_B, NODE_C]
+
+
+def test_layout_roles():
+    nodes = [
+        {"id": NODE_B, "zone": "dc2", "capacity": "1T", "gateway": False, "tags": ["x"]},
+        {"id": NODE_A, "zone": "dc1", "capacity": None, "gateway": True, "tags": []},
+    ]
+    assert garage.layout_roles(nodes) == {"roles": [
+        {"id": NODE_A, "zone": "dc1", "capacity": None, "tags": []},
+        {"id": NODE_B, "zone": "dc2", "capacity": 1000000000000, "tags": ["x"]},
+    ]}
+
+
+@pytest.mark.parametrize("zone, capacity, gateway, tags, needle", [
+    ("dc1", "1T", False, [], None),
+    ("dc1", "", True, [], None),
+    ("", "1T", False, [], "garage_cluster_zone is required"),
+    ("dc1", "1T", True, [], "not both and not neither"),
+    ("dc1", "", False, [], "not both and not neither"),
+    ("dc1", "1X", False, [], "garage_cluster_capacity"),
+    ("dc1", "1T", False, "x", "garage_cluster_tags"),
+    ("dc1", "1T", False, [""], "garage_cluster_tags"),
+])
+def test_role_problems(zone, capacity, gateway, tags, needle):
+    problems = garage.role_problems(zone, capacity, gateway, tags)
+    if needle is None:
+        assert problems == []
+    else:
+        assert any(needle in p for p in problems), problems
+
+
+# GetClusterHealth as garage v2's json-api prints it.
+HEALTHY = {"status": "healthy", "knownNodes": 4, "connectedNodes": 4, "storageNodes": 3,
+           "storageNodesUp": 3, "partitions": 256, "partitionsQuorum": 256, "partitionsAllOk": 256}
+
+
+def test_health_regressions_none():
+    assert garage.health_regressions(HEALTHY, HEALTHY) == []
+    assert garage.health_regressions({"status": "unavailable"}, {}) == []
+
+
+def test_health_regressions():
+    after = dict(HEALTHY, status="degraded", connectedNodes=2, storageNodesUp=2)
+    assert garage.health_regressions(after, HEALTHY) == [
+        "2 connected nodes, 4 before",
+        "2 storage nodes up, 3 before",
+        "the cluster is degraded, it was healthy",
+    ]
+
+
+def test_health_regressions_from_degraded_to_unavailable():
+    """degraded keeps quorum, unavailable doesn't: worse even with the same node counts."""
+    before = dict(HEALTHY, status="degraded", partitionsAllOk=0)
+    after = dict(before, status="unavailable", partitionsQuorum=100)
+    assert garage.health_regressions(after, before) == [
+        "100 partitions with quorum, 256 before",
+        "the cluster is unavailable, it was degraded",
+    ]
+
+
+def test_health_regressions_with_v2_0_field_names():
+    """Garage v2.0 calls storageNodesUp storageNodesOk."""
+    before = {"status": "healthy", "connectedNodes": 3, "storageNodesOk": 3}
+    assert garage.health_regressions(dict(before, storageNodesOk=2), before) == [
+        "2 storage nodes up, 3 before",
+    ]
+
+
+def test_health_regressions_from_a_degraded_cluster():
+    before = dict(HEALTHY, status="degraded", storageNodesUp=2, connectedNodes=3)
+    assert garage.health_regressions(dict(before), before) == []
+
+
+# Saved peer lists, as garage v2.6.0 wrote them: empty, then three peers (first bytes).
+@pytest.mark.parametrize("data, expected", [
+    (b"", 0),
+    (bytes([0x90]), 0),
+    (bytes([0x93, 0x92, 0xC4, 0x20]), 3),
+    (bytes([0x9F]), 15),
+    (bytes([0xDC, 0x00, 0x20]), 32),
+    (bytes([0xDD, 0x00, 0x01, 0x00, 0x00]), 65536),
+])
+def test_peer_list_count(data, expected):
+    assert garage.peer_list_count(data) == expected
+
+
+def test_peer_list_count_refuses_garbage():
+    with pytest.raises(ValueError):
+        garage.peer_list_count(b"{}")

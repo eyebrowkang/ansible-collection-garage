@@ -1,0 +1,56 @@
+---
+# A change to every node of a running, healthy cluster: each restarts once, one at a time,
+# and the cluster is healthy at the end.
+# In batches of two: each batch restarts its own nodes, never an earlier batch's again.
+- name: Change every node of the cluster
+  hosts: all
+  become: true
+  serial: 2
+  tasks:
+    - name: Read the service's process before the change
+      ansible.builtin.systemd_service:
+        name: garage.service
+      register: side_effect_before
+
+    - name: Run the node role with a changed setting
+      ansible.builtin.include_role:
+        name: eyebrowkang.garage.node
+      vars:
+        garage_node_settings: "{{ hostvars[inventory_hostname].garage_node_settings | combine({'block_size': 2097152}) }}"
+
+    - name: Read the service's process after the change
+      ansible.builtin.systemd_service:
+        name: garage.service
+      register: side_effect_after
+
+    - name: Check the node was restarted once
+      ansible.builtin.assert:
+        that:
+          - side_effect_after.status.ActiveState == 'active'
+          - side_effect_after.status.MainPID != side_effect_before.status.MainPID
+          - side_effect_after.status.NRestarts | int == 0
+
+    - name: Read when each node started
+      ansible.builtin.set_fact:
+        side_effect_started: "{{ side_effect_after.status.ExecMainStartTimestampMonotonic | int }}"
+
+- name: Check the restarts were one at a time, and once
+  hosts: all
+  become: true
+  tasks:
+    - name: Read the service's process now
+      ansible.builtin.systemd_service:
+        name: garage.service
+      register: side_effect_now
+
+    - name: Check no later batch restarted the node again
+      ansible.builtin.assert:
+        that: side_effect_now.status.MainPID == hostvars[inventory_hostname].side_effect_after.status.MainPID
+
+
+    - name: Check no two nodes restarted together
+      vars:
+        starts: "{{ ansible_play_hosts | map('extract', hostvars, 'side_effect_started') | map('int') | sort }}"
+      ansible.builtin.assert:
+        that: starts | unique | length == starts | length
+      run_once: true

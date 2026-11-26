@@ -17,6 +17,7 @@
 | Role | 管理的内容 |
 | ---- | ---------- |
 | [`eyebrowkang.garage.node`](roles/node/README.zh-CN.md) | 一个 Garage 节点：二进制、用户、systemd unit、`garage.toml` 及其密钥，以及它们的升级 |
+| [`eyebrowkang.garage.cluster`](roles/cluster/README.zh-CN.md) | 让节点第一次成为一个集群：互相连接并应用首个 layout |
 
 ## 依赖
 

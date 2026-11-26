@@ -46,8 +46,7 @@ as YAML. The role writes it as TOML.
 
 - It's merged over the role's defaults: `rpc_bind_addr` `[::]:3901`, `s3_api.api_bind_addr`
   `[::]:3900`, `s3_api.s3_region` `garage` and `admin.api_bind_addr` `[::]:3903`.
-- `metadata_dir`, `data_dir` and `replication_factor` are required. `admin.api_bind_addr`
-  can't be removed: the role checks the node's health through it.
+- `metadata_dir`, `data_dir` and `replication_factor` are required.
 - The secrets aren't settings: `rpc_secret`, `admin.admin_token`, `admin.metrics_token` and
   their `*_file` keys are refused. The role writes the secrets to files and sets the
   `*_file` keys itself.
@@ -69,8 +68,8 @@ as YAML. The role writes it as TOML.
 
 A running node is restarted once for all its changes: the binary, the settings, a secret,
 the unit. The nodes of the play restart one at a time, and each must be as healthy as it
-was before the next one stops: a node that reported quorum (`/health`) must report it
-again. See [docs/design.md](../../docs/design.md), "Restarts".
+was before the next one stops, as Garage reports it over RPC: connected to as many nodes,
+with as many storage nodes up, and the cluster healthy if it was. See [docs/design.md](../../docs/design.md), "Restarts".
 
 ## Removing
 

@@ -1,14 +1,29 @@
 ---
-# Restarts garage_node_target, then waits for it. It must be as healthy as it was: a node
-# that reported quorum (/health 200) must report it again before the next node stops.
-- name: Ask whether the cluster is healthy before restarting {{ garage_node_target }}
-  ansible.builtin.uri:
-    url: "{{ hostvars[garage_node_target].garage_node_health_url }}"
-    unix_socket: "{{ hostvars[garage_node_target].garage_node_admin_socket or omit }}"
-    status_code: [200, 503]
+# Restarts garage_node_target, then waits until it's as healthy as it was before the next node
+# stops: connected to as many nodes, with as many storage nodes up, and healthy if it was
+# (docs/design.md, "Restarts").
+- name: Ask how healthy the cluster is before restarting {{ garage_node_target }}
+  ansible.builtin.command:
+    argv: "{{ garage_node_garage + ['json-api', 'GetClusterHealth'] }}"
   register: garage_node_health_before
+  changed_when: false
   failed_when: false
   delegate_to: "{{ garage_node_target }}"
+
+# Garage saves a node's peers every minute, and a restarted node finds the others again only
+# through that list: restart a node only once it holds every node it's connected to.
+- name: Wait until the saved peers cover the connected nodes of {{ garage_node_target }}
+  ansible.builtin.slurp:
+    src: "{{ hostvars[garage_node_target].garage_node_effective_settings.metadata_dir }}/peer_list"
+  register: garage_node_peer_list
+  until: >-
+    garage_node_peer_list is not failed
+    and (garage_node_peer_list.content | eyebrowkang.garage.garage_peer_list_count)
+        >= (garage_node_health_before.stdout | from_json).connectedNodes - 1
+  retries: "{{ garage_node_peers_retries }}"
+  delay: "{{ garage_node_wait_delay }}"
+  delegate_to: "{{ garage_node_target }}"
+  when: garage_node_health_before.rc == 0
 
 - name: Restart {{ garage_node_target }}
   ansible.builtin.systemd_service:
@@ -19,4 +34,34 @@
 - name: Wait for {{ garage_node_target }}
   ansible.builtin.include_tasks: wait.yml
   vars:
-    garage_node_require_health: "{{ garage_node_health_before.status | default(0) == 200 }}"
+    garage_node_health_floor: >-
+      {{ garage_node_health_before.stdout | from_json
+         if garage_node_health_before.rc == 0 else {} }}
+
+# A node that was connected to the restarted one keeps its old connection until it next uses
+# it: its requests to it fail until then. Each other node of the play reaches the restarted
+# one over RPC, which also replaces a dead connection, before the next node stops.
+- name: Ask for the node ID of {{ garage_node_target }}
+  ansible.builtin.command:
+    argv: "{{ garage_node_garage + ['node', 'id', '-q'] }}"
+  register: garage_node_restarted_id
+  changed_when: false
+  delegate_to: "{{ garage_node_target }}"
+
+- name: Reach the restarted node from every other node of the play
+  vars:
+    target_id: "{{ garage_node_restarted_id.stdout | eyebrowkang.garage.garage_node_id }}"
+  ansible.builtin.command:
+    argv: "{{ garage_node_garage + ['json-api', 'GetNodeInfo', {'node': target_id, 'body': none} | to_json] }}"
+  register: garage_node_reached
+  changed_when: false
+  failed_when: false
+  until: >-
+    garage_node_reached.rc == 0
+    and target_id in (garage_node_reached.stdout | from_json).success
+  retries: "{{ garage_node_wait_retries }}"
+  delay: "{{ garage_node_wait_delay }}"
+  loop: "{{ ansible_play_hosts | difference([garage_node_target]) }}"
+  loop_control:
+    loop_var: garage_node_peer
+  delegate_to: "{{ garage_node_peer }}"
