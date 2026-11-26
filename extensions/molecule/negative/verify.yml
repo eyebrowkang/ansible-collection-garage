@@ -1,0 +1,37 @@
+---
+# Every refusal came before any change: each node runs the same process, the same version
+# and the same garage.toml as after prepare.
+- name: Verify
+  hosts: all
+  become: true
+  tasks:
+    - name: Read what prepare recorded
+      ansible.builtin.slurp:
+        src: /root/negative-before
+      register: verify_before
+
+    - name: Read the service's process
+      ansible.builtin.systemd_service:
+        name: garage.service
+      register: verify_service
+
+    - name: Read garage.toml
+      ansible.builtin.stat:
+        path: /etc/garage/garage.toml
+        checksum_algorithm: sha256
+      register: verify_config
+
+    - name: Ask the binary for its version
+      ansible.builtin.command: /usr/local/bin/garage --version
+      register: verify_version
+      changed_when: false
+
+    - name: Check nothing changed
+      vars:
+        before: "{{ (verify_before.content | b64decode).split() }}"
+      ansible.builtin.assert:
+        that:
+          - verify_service.status.ActiveState == 'active'
+          - verify_service.status.MainPID | string == before[0]
+          - verify_config.stat.checksum == before[1]
+          - (verify_version.stdout | eyebrowkang.garage.garage_version) == 'v2.6.0'

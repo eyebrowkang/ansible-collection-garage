@@ -1,0 +1,45 @@
+---
+# A node's life beyond the default scenario: the binary fetched through the controller, a
+# systemd drop-in, then removed with state absent (docs/design.md, "Removal"). Reuses the
+# default scenario's test variables.
+dependency:
+  name: galaxy
+  enabled: false
+
+driver:
+  name: default
+  options:
+    managed: true
+
+platforms:
+  - name: garage-lifecycle
+    image: "${MOLECULE_IMAGE:-geerlingguy/docker-debian13-ansible:latest}"
+    systemd: true
+    groups: [garage_nodes, docker_instances]
+
+provisioner:
+  name: ansible
+  playbooks:
+    create: ../default/create.yml
+    destroy: ../default/destroy.yml
+    converge: converge.yml
+    side_effect: side_effect.yml
+    verify: verify.yml
+  inventory:
+    links:
+      group_vars: ../default/inventory/group_vars/
+
+verifier:
+  name: ansible
+
+scenario:
+  name: lifecycle
+  test_sequence:
+    - destroy
+    - syntax
+    - create
+    - converge
+    - idempotence
+    - side_effect
+    - verify
+    - destroy

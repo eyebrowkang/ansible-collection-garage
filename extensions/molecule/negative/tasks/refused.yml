@@ -1,0 +1,17 @@
+---
+# Runs eyebrowkang.garage.<refused_role> and expects it to fail with refused_because in its
+# message.
+- name: Run the role, expecting a refusal
+  block:
+    - name: Run the role
+      ansible.builtin.include_role:
+        name: "eyebrowkang.garage.{{ refused_role }}"
+
+    - name: Report the role ran
+      ansible.builtin.fail:
+        msg: "The {{ refused_role }} role ran: it should have refused ({{ refused_because }})."
+  rescue:
+    - name: Check the refusal says why
+      ansible.builtin.assert:
+        that: refused_because in ansible_failed_result.msg
+        fail_msg: "Expected a refusal saying '{{ refused_because }}', got: {{ ansible_failed_result.msg | default(ansible_failed_result) }}"

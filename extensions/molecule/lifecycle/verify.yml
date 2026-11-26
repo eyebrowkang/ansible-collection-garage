@@ -1,0 +1,48 @@
+---
+# Removed: the binary, the unit, /etc/garage and the user are gone; the metadata, the data
+# and /var/lib/garage stay.
+- name: Verify
+  hosts: all
+  become: true
+  tasks:
+    - name: Look for what the node role created
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /usr/local/bin/garage
+        - /etc/systemd/system/garage.service
+        - /etc/systemd/system/garage.service.d
+        - /etc/garage
+        - /var/lib/garage/meta/node_key
+        - /var/lib/garage/data
+      register: verify_paths
+
+    - name: Check what's gone and what stays
+      vars:
+        exists: "{{ dict(verify_paths.results | map(attribute='item') | zip(verify_paths.results | map(attribute='stat.exists'))) }}"
+      ansible.builtin.assert:
+        that:
+          - not exists['/usr/local/bin/garage']
+          - not exists['/etc/systemd/system/garage.service']
+          - not exists['/etc/systemd/system/garage.service.d']
+          - not exists['/etc/garage']
+          - exists['/var/lib/garage/meta/node_key']
+          - exists['/var/lib/garage/data']
+        fail_msg: "{{ exists | to_json }}"
+
+    - name: Read the users and the services
+      ansible.builtin.getent:
+        database: passwd
+        key: garage
+        fail_key: false
+
+    - name: Check the garage user is gone
+      ansible.builtin.assert:
+        that: ansible_facts.getent_passwd.garage is none
+
+    - name: Read the services as systemd reports them
+      ansible.builtin.service_facts:
+
+    - name: Check garage.service is gone
+      ansible.builtin.assert:
+        that: "'garage.service' not in ansible_facts.services"

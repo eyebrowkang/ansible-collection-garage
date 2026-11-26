@@ -1,0 +1,25 @@
+---
+# A two-node cluster, and what verify compares to: each node's process and garage.toml.
+- name: Deploy the cluster
+  hosts: all
+  become: true
+  roles:
+    - role: eyebrowkang.garage.node
+    - role: eyebrowkang.garage.cluster
+  tasks:
+    - name: Read the service's process
+      ansible.builtin.systemd_service:
+        name: garage.service
+      register: prepare_service
+
+    - name: Read garage.toml
+      ansible.builtin.stat:
+        path: /etc/garage/garage.toml
+        checksum_algorithm: sha256
+      register: prepare_config
+
+    - name: Record them
+      ansible.builtin.copy:
+        content: "{{ prepare_service.status.MainPID }} {{ prepare_config.stat.checksum }}\n"
+        dest: /root/negative-before
+        mode: "0600"

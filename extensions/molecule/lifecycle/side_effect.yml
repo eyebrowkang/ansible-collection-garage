@@ -1,0 +1,43 @@
+---
+# What converge set up is there, then the node is removed - twice, the second time a no-op.
+- name: Check what converge set up
+  hosts: all
+  become: true
+  tasks:
+    - name: Ask systemd for the unit's properties
+      ansible.builtin.systemd_service:
+        name: garage.service
+      register: side_effect_unit
+
+    - name: Check the drop-in applies
+      ansible.builtin.assert:
+        that:
+          - "'RUST_LOG=garage=debug' in side_effect_unit.status.Environment"
+          - "'GARAGE_LOG_TO_JOURNALD=1' in side_effect_unit.status.Environment"
+          - "'eyebrowkang-garage.conf' in side_effect_unit.status.DropInPaths"
+
+    - name: Look for the controller's cache
+      ansible.builtin.find:
+        paths: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/cache"
+        patterns: garage
+        recurse: true
+      register: side_effect_cache
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+
+    - name: Check the binary came through the cache
+      ansible.builtin.assert:
+        that: side_effect_cache.matched == 1
+
+- name: Remove the node, twice
+  hosts: all
+  become: true
+  tasks:
+    - name: Remove the node
+      ansible.builtin.include_role:
+        name: eyebrowkang.garage.node
+      vars:
+        garage_node_state: absent
+      loop: [1, 2]
