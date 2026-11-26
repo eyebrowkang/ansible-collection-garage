@@ -1,0 +1,35 @@
+[project]
+name = "eyebrowkang-garage"
+version = "0"
+description = "Deploy, upgrade and remove a Garage object storage cluster on systemd hosts"
+requires-python = ">=3.12"
+dependencies = []
+
+# A collection is not a distributable wheel — don't build/install this dir.
+[tool.uv]
+package = false
+
+# Dev toolchain. `ansible-test` ships with ansible-core (sanity needs no extra dep);
+# molecule drives the example role's docker scenario via the built-in delegated driver.
+# `vagrant` is installed explicitly (`uv sync --group vagrant`) and layers
+# molecule-plugins[vagrant] on top of `dev` via include-group.
+[dependency-groups]
+dev = [
+    "ansible-core>=2.21,<2.22",
+    "molecule>=26,<27",
+    "docker>=7",
+    "ansible-lint>=26,<27",
+    "yamllint>=1.35",
+]
+vagrant = [
+    {include-group = "dev"},
+    "molecule-plugins[vagrant]>=25.8,<26",
+    "python-vagrant>=1.0",
+    "libvirt-python>=10",
+]
+# Release-only: antsibull-changelog renders the changelog from changelogs/fragments/. Off
+# the default `uv sync` (lint/sanity/units don't need it) — the release workflows + `make
+# changelog` pull it via `uv sync --group changelog` / `uv run --group changelog`.
+changelog = [
+    "antsibull-changelog>=0.31",
+]

@@ -1,0 +1,44 @@
+---
+name: Release
+# Tag-driven Galaxy release.  Prepare the release commit first: bump galaxy.yml, run
+# `make changelog`, commit, then push a plain SemVer tag such as 0.2.0 (bare, no v —
+# it must equal galaxy.yml's version).  A release tag is immutable: this workflow
+# checks out and builds that exact tag — it never writes a branch or moves a tag —
+# then publishes to Ansible Galaxy and cuts a GitHub release.
+# Requires a GALAXY_API_KEY secret (https://galaxy.ansible.com -> Preferences -> API key).
+on:
+  push:
+    tags:
+      - '[0-9]*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - name: Verify immutable release input
+        run: |
+          version="$GITHUB_REF_NAME"
+          printf '%s' "$version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)*$' \
+            || { echo "::error::tag '$version' is not a plain SemVer X.Y.Z[-pre][+build]"; exit 1; }
+          metadata_version="$(awk '/^version:/ { print $2; exit }' galaxy.yml)"
+          [ "$metadata_version" = "$version" ] \
+            || { echo "::error::tag '$version' does not match galaxy.yml version '$metadata_version'"; exit 1; }
+          [ "$(git describe --exact-match --tags HEAD)" = "$version" ] \
+            || { echo "::error::HEAD is not exactly tag '$version'"; exit 1; }
+      - run: uv sync --locked
+      - name: Build the collection from the release tag
+        run: uv run ansible-galaxy collection build --output-path dist
+      - name: Publish to Ansible Galaxy
+        run: uv run ansible-galaxy collection publish --api-key "${{ secrets.GALAXY_API_KEY }}" dist/*.tar.gz
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.tar.gz --title "$GITHUB_REF_NAME" --notes "Released $GITHUB_REF_NAME. See CHANGELOG.md."

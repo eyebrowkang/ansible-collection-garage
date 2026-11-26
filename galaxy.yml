@@ -1,0 +1,44 @@
+---
+namespace: eyebrowkang
+name: garage
+version: 0.1.0
+readme: README.md
+authors:
+  - "eyebrowkang"
+description: "Deploy, upgrade and remove a Garage object storage cluster on systemd hosts"
+license:
+  - GPL-3.0-or-later
+# Update these URLs to your real repository (Galaxy requires `repository`).
+repository: https://github.com/eyebrowkang/ansible-collection-garage
+homepage: https://github.com/eyebrowkang/ansible-collection-garage
+issues: https://github.com/eyebrowkang/ansible-collection-garage/issues
+tags:
+  - infrastructure
+  - storage
+  - s3
+  - garage
+dependencies: {}
+# Keep dev/CI scaffolding out of the built collection artifact.
+build_ignore:
+  - .git
+  - .gitignore
+  - .github
+  - .forgejo
+  - .config
+  - .venv
+  - .ansible
+  - .copier-answers.yml
+  - extensions
+  # tests/ isn't shipped: run the tests from a clone of the release tag.
+  - tests
+  # Maintenance scripts, run from a clone (`uv run python scripts/<name>.py`; no shebang:
+  # ansible-test sanity rejects `#!/usr/bin/env python3`).
+  - scripts
+  - pyproject.toml
+  - uv.lock
+  - Makefile
+  - .pre-commit-config.yaml
+  - .ansible-lint
+  - .yamllint.yml
+  - .python-version
+  - renovate.json

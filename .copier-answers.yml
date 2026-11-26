@@ -1,0 +1,26 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY.
+# Run `copier update --trust` from this directory to pull template improvements.
+_commit: v1.8.0
+_src_path: .
+author: eyebrowkang
+ci_platform: github
+collection_dependencies: {}
+collection_description: Deploy, upgrade and remove a Garage object storage cluster
+    on systemd hosts
+collection_name: garage
+collection_release: true
+collection_tags:
+- infrastructure
+- storage
+- s3
+- garage
+dependency_updates: true
+include_arm64: false
+include_docker: true
+include_plugins: false
+include_unit_tests: true
+include_vagrant: true
+kind: collection
+license: GPL-3.0-or-later
+min_ansible_version: 2.20.0
+namespace: eyebrowkang

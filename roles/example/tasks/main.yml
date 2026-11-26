@@ -1,0 +1,14 @@
+---
+# tasks for the eyebrowkang.garage.example role
+#
+# Placeholder that manages ONE file, so `converge` has a real, idempotent effect that
+# molecule's `idempotence` step and verify.yml can check. The destination comes from a
+# role variable (declared in defaults/main.yml + validated in meta/argument_specs.yml).
+# Replace with your role's real tasks — and keep them idempotent.
+- name: Ensure the role marker file is present
+  ansible.builtin.copy:
+    content: "eyebrowkang.garage.example applied\n"
+    dest: "{{ garage_example_marker_path }}"
+    owner: root
+    group: root
+    mode: "0644"

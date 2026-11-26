@@ -1,0 +1,14 @@
+---
+galaxy_info:
+  role_name: example
+  author: "eyebrowkang"
+  description: Example role in the eyebrowkang.garage collection
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.20.0"
+  platforms:
+    - name: Debian
+      versions:
+        - bookworm
+  galaxy_tags: []
+
+dependencies: []

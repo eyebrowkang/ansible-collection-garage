@@ -1,0 +1,51 @@
+---
+# Vagrant + libvirt scenario for the collection's example role — VM-only needs
+# (kernel modules, reboot, real networking). Runs locally and on the self-hosted
+# Forgejo runner (privileged, /dev/kvm). Mirrors the standalone role's vagrant scenario,
+# but resolves the role by short name (converge uses `roles: [example]`) via the
+# ANSIBLE_ROLES_PATH from .config/molecule/config.yml, like the docker scenario.
+#
+# molecule-plugins#301: run this via `make test-vm`, which exports ANSIBLE_LIBRARY /
+# ANSIBLE_FILTER_PLUGINS so Ansible can find the vagrant module/filter. A bare
+# `molecule test -s vagrant` fails without those (see docs/molecule-301-workaround.md).
+dependency:
+  name: galaxy   # auto-installs collections.yml + requirements.yml (scenario-absolute paths)
+
+driver:
+  name: vagrant
+  provider:
+    name: libvirt
+
+platforms:
+  - name: garage-example-vm
+    box: debian/trixie64
+    memory: 1024
+    cpus: 1
+    groups:
+      - example_servers
+
+provisioner:
+  name: ansible
+  # The docker scenario's playbooks and test variables (the same linked inventory). The
+  # vagrant driver supplies ansible_user itself.
+  playbooks:
+    converge: ../default/converge.yml
+    verify: ../default/verify.yml
+  inventory:
+    links:
+      group_vars: ../default/inventory/group_vars/
+
+verifier:
+  name: ansible
+
+scenario:
+  name: vagrant
+  test_sequence:
+    - dependency
+    - destroy
+    - syntax
+    - create
+    - converge
+    - idempotence
+    - verify
+    - destroy

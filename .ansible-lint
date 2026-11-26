@@ -1,0 +1,22 @@
+---
+profile: production
+
+exclude_paths:
+  - .ansible/
+  - .venv/
+  - .copier-answers.yml
+  # ansible-test writes junit/coverage artefacts here; they otherwise trip a local
+  # `make lint` run that follows `make sanity`/`units`.
+  - tests/output/
+
+# ansible-lint's meta-runtime rule (meta/runtime.yml's requires_ansible) only knows
+# ansible-core releases up to 2.19; min_ansible_version declares 2.20.
+supported_ansible_also:
+  - "2.20."
+
+skip_list:
+  # The rule wants each role's variables prefixed with the bare role name, but variables
+  # share one namespace across collections: they're prefixed <collection>_<role>_
+  # (garage_<role>_*).
+  # Skipping it checks no prefix at all: keep to the convention by hand.
+  - var-naming[no-role-prefix]

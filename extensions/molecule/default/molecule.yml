@@ -1,0 +1,50 @@
+---
+# Docker scenario for the collection's example role — same delegated-driver approach
+# as the standalone role template (built-in default driver + community.docker
+# create/destroy). Lives under extensions/molecule (molecule's location for collections)
+# so its playbooks are linted as playbooks, not role content. The role is resolved by
+# its short name (converge uses `roles: [example]`) via the ANSIBLE_ROLES_PATH that
+# .config/molecule/config.yml sets for every scenario.
+dependency:
+  name: galaxy   # auto-installs collections.yml + requirements.yml (scenario-absolute paths)
+
+driver:
+  name: default
+  options:
+    managed: true
+
+platforms:
+  - name: garage-example-debian13
+    # systemd-enabled image so service/timer units can be tested in-container.
+    # Pinned by digest (force_pull stays effective + reproducible); bump periodically.
+    image: geerlingguy/docker-debian13-ansible:latest@sha256:d18f6c4b36b7ad9be9f2418375ea73d431fef86d314709497facb56a8f8e76c6
+    systemd: true
+    groups:
+      - example_servers
+
+provisioner:
+  name: ansible
+  playbooks:
+    create: create.yml
+    destroy: destroy.yml
+    converge: converge.yml
+    verify: verify.yml
+  inventory:
+    # The test variables (inventory/group_vars/), shared with the other scenarios.
+    links:
+      group_vars: inventory/group_vars/
+
+verifier:
+  name: ansible
+
+scenario:
+  name: default
+  test_sequence:
+    - dependency
+    - destroy
+    - syntax
+    - create
+    - converge
+    - idempotence
+    - verify
+    - destroy

@@ -1,0 +1,7 @@
+---
+# Default variables for the example role. Users override these in inventory/playbooks.
+#
+# Example (replace with your role's real defaults). Prefix every role variable with
+# <collection>_<role>_ (garage_example_): variables share one namespace across
+# collections, and a bare <role>_ prefix (example_, install_) says nothing in an inventory.
+garage_example_marker_path: "/etc/eyebrowkang.garage.example.applied"

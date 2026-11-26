@@ -1,0 +1,5 @@
+---
+# The vagrant scenario uses the libvirt driver (no community.docker needed). It only
+# needs the collection's own runtime dependencies so the example role can resolve them.
+collections:
+  []
