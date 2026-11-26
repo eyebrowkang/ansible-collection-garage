@@ -22,6 +22,8 @@ garage_node_garage:
 # How long a started or restarted node has to be back as healthy as before: 2 minutes.
 garage_node_wait_retries: 60
 garage_node_wait_delay: 2
+# Garage saves a node's peers every minute: wait a little longer than that.
+garage_node_peers_retries: 45
 
 # The first line of the files the role writes, so a takeover tells them from the role's.
 garage_node_marker: "Managed by the eyebrowkang.garage collection (node role)"

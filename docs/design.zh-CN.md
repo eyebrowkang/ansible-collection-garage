@@ -111,7 +111,10 @@ Garage v3 正式发布时，collection 发布 1.0，并且 1.0 能把集群从 v
 - 没在运行的节点会被启动。
 - 对运行中节点的变更会重启它，在整个 play 范围内一次一个节点。只有重启的节点恢复到重启前的健康程度
   （以 Garage 通过 RPC 报告的 `GetClusterHealth` 为准：连接的节点数、在线的存储节点数都不少于重启前，
-  重启前集群健康的，现在也要健康），下一个节点才会停止。两分钟内达不到的节点会中止运行。
+  重启前集群健康的，现在也要健康），并且 play 中的其他每个节点都能经 RPC 访问到它（节点会一直持有到重启
+  节点的失效连接，直到下次使用它），下一个节点才会停止。两分钟内达不到的节点会中止运行。
+- 节点只有在把它连接着的节点保存为 peer 之后才会被重启。Garage 每分钟保存一次 peer，重启的节点只能通过
+  它们重新找到其他节点。
 - 同一次运行中配置和二进制都有变更时，节点只重启一次。
 
 限制：
@@ -150,6 +153,8 @@ Garage v2 到 v3（以后的大版本同理）。步骤遵循 Garage 的
 - 只有当集群还没有 layout（layout 版本为 0）时才应用首个 layout。play 中的每个节点都必须先连接上，
   并且每个节点都要有 zone 和 capacity，或者是 gateway。
 - 已有 layout 的集群永远不会被改动。
+- 每个节点都把其他节点保存为 peer 之后，运行才结束（Garage 每分钟保存一次，所以首次引导最多多花一分钟）：
+  之后重启的节点，或者所有节点同时重启，都能重新找到其他节点。
 - `cluster` 在节点上通过 `garage json-api` 经 RPC 调用 admin API：只需要 RPC 密钥，不需要 admin token，
   读取的是 JSON。它用到的 admin API v2 接口在每个受支持的版本中都有；结果由插件读取，并有单元测试。
 
@@ -170,7 +175,7 @@ Garage v2 到 v3（以后的大版本同理）。步骤遵循 Garage 的
 - `metadata_dir` 和 `data_dir` 必须与现有 `garage.toml` 中的相同，否则拒绝运行（见原则 6）。节点保留
   它的身份、layout 和数据。
 - inventory 中仍然设置着的 role 变量（`garage_version`、`garage_rpc_secret` 等）会让运行失败，列出这些
-  变量，并指向迁移指南（待编写：每个 role 变量及其替代写法）。否则 collection 不读取的变量会被静默忽略。
+  变量，并指向[迁移指南](migrating-from-the-role.zh-CN.md)：每个 role 变量及其替代写法。否则 collection 不读取的变量会被静默忽略。
 - 接管会删除 role 留下而 collection 不用的东西：`/etc/garage/garage.env` 和
   `/usr/local/bin/garage.bak`。
 - 第一次运行会逐个重启每个节点一次：unit 和 `garage.toml` 会变化（密钥移到单独的文件）。

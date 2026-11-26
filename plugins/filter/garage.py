@@ -22,6 +22,8 @@ description:
   - C(garage_nodes_not_up) lists the wanted node IDs a status doesn't see up.
   - C(garage_layout_roles) is the C(UpdateClusterLayout) request for the first layout.
   - C(garage_role_problems) lists what's wrong with a node's layout role.
+  - C(garage_peer_list_count) is how many peers a node's saved peer list holds, from its
+    base64 content (slurp).
   - C(garage_health_regressions) lists how a C(GetClusterHealth) result is worse than an earlier one.
 options:
   _input:
@@ -44,6 +46,7 @@ _value:
   type: raw
 """
 
+import base64
 import tomllib
 
 from ansible.errors import AnsibleFilterError
@@ -142,6 +145,13 @@ def garage_health_regressions(health, floor):
     return garage.health_regressions(_plain(health), _plain(floor or {}))
 
 
+def garage_peer_list_count(content):
+    try:
+        return garage.peer_list_count(base64.b64decode(str(content or "")))
+    except ValueError as error:
+        raise AnsibleFilterError(str(error)) from error
+
+
 class FilterModule:
     """Filters for a Garage node."""
 
@@ -162,4 +172,5 @@ class FilterModule:
             "garage_layout_roles": garage_layout_roles,
             "garage_role_problems": garage_role_problems,
             "garage_health_regressions": garage_health_regressions,
+            "garage_peer_list_count": garage_peer_list_count,
         }

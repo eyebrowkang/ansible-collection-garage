@@ -290,3 +290,21 @@ def test_health_regressions():
 def test_health_regressions_from_a_degraded_cluster():
     before = dict(HEALTHY, status="degraded", storageNodesUp=2, connectedNodes=3)
     assert garage.health_regressions(dict(before), before) == []
+
+
+# Saved peer lists, as garage v2.6.0 wrote them: empty, then three peers (first bytes).
+@pytest.mark.parametrize("data, expected", [
+    (b"", 0),
+    (bytes([0x90]), 0),
+    (bytes([0x93, 0x92, 0xC4, 0x20]), 3),
+    (bytes([0x9F]), 15),
+    (bytes([0xDC, 0x00, 0x20]), 32),
+    (bytes([0xDD, 0x00, 0x01, 0x00, 0x00]), 65536),
+])
+def test_peer_list_count(data, expected):
+    assert garage.peer_list_count(data) == expected
+
+
+def test_peer_list_count_refuses_garbage():
+    with pytest.raises(ValueError):
+        garage.peer_list_count(b"{}")

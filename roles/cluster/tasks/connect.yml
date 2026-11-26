@@ -57,3 +57,22 @@
              | eyebrowkang.garage.garage_nodes_not_up(garage_cluster_wanted) | length == 0)
       retries: "{{ garage_cluster_wait_retries }}"
       delay: "{{ garage_cluster_wait_delay }}"
+
+# Garage saves a node's peers every minute, and a restarted node finds the others again only
+# through that list: the bootstrap is done when every node has saved the others.
+- name: Read where the node keeps its metadata
+  ansible.builtin.slurp:
+    src: "{{ garage_cluster_config_path }}"
+  register: garage_cluster_config
+
+- name: Wait until the node has saved the other nodes as its peers
+  ansible.builtin.slurp:
+    src: "{{ (garage_cluster_config.content | b64decode | eyebrowkang.garage.from_toml).metadata_dir }}/peer_list"
+  register: garage_cluster_peer_list
+  until: >-
+    garage_cluster_peer_list is not failed
+    and (garage_cluster_peer_list.content | eyebrowkang.garage.garage_peer_list_count)
+        >= garage_cluster_wanted | length
+  retries: "{{ garage_cluster_peers_retries }}"
+  delay: "{{ garage_cluster_wait_delay }}"
+  when: not ansible_check_mode

@@ -132,8 +132,12 @@ Guarantees:
 - A change to a running node restarts it, one node at a time across the play. The next
   node stops only when the restarted one is as healthy as it was, as Garage reports it
   (`GetClusterHealth`, over RPC): connected to as many nodes, with as many storage nodes
-  up, and the cluster healthy if it was. A node that doesn't get there within two minutes
-  stops the run.
+  up, and the cluster healthy if it was; and every other node of the play reaches it over
+  RPC (a node keeps a dead connection to a restarted peer until it next uses it). A node
+  that doesn't get there within two minutes stops the run.
+- A node is restarted only once it has saved the nodes it's connected to as its peers.
+  Garage saves them every minute, and a restarted node finds the others again only through
+  them.
 - A configuration change and a binary change in one run restart a node once.
 
 Limits:
@@ -178,6 +182,9 @@ Guarantees:
   node of the play must be connected first, and each must have a zone and a capacity, or
   be a gateway.
 - A cluster that has a layout is never changed.
+- The run ends when every node has saved the others as its peers (Garage saves them every
+  minute, so a first bootstrap takes up to a minute more): a node restarted afterwards,
+  or every node at once, finds the others again.
 - `cluster` calls the admin API through `garage json-api` on the nodes, over RPC: it needs
   only the RPC secret, no admin token, and reads JSON. The admin API's v2 endpoints it uses
   are in every supported version; plugins read their results, with unit tests.
@@ -202,8 +209,8 @@ Guarantees:
 - `metadata_dir` and `data_dir` must equal the ones in the existing `garage.toml`, otherwise
   the run is refused (see principle 6). The node keeps its identity, layout and data.
 - Variables of the role still set in the inventory (`garage_version`, `garage_rpc_secret`,
-  ...) make the run fail, listing them and pointing at the migration guide (to be written:
-  each role variable and what replaces it). A variable the collection doesn't read would
+  ...) make the run fail, listing them and pointing at the
+  [migration guide](migrating-from-the-role.md): each role variable and what replaces it. A variable the collection doesn't read would
   otherwise be ignored silently.
 - The takeover removes what the role left that the collection doesn't use:
   `/etc/garage/garage.env` and `/usr/local/bin/garage.bak`.

@@ -13,6 +13,8 @@ garage_cluster_garage:
 # How long to wait for the nodes to see each other, and the cluster to be healthy.
 garage_cluster_wait_retries: 30
 garage_cluster_wait_delay: 2
+# Garage saves a node's peers every minute: wait a little longer than that.
+garage_cluster_peers_retries: 45
 
 # The variables of the eyebrowkang.garage role: the node role's list.
 garage_cluster_role_variables:

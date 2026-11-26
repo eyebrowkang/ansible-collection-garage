@@ -370,3 +370,21 @@ def health_regressions(health, floor):
     if floor.get("status") == "healthy" and health.get("status") != "healthy":
         regressions.append("the cluster is %s, it was healthy" % health.get("status"))
     return regressions
+
+
+def peer_list_count(data):
+    """How many peers a node's saved peer list (metadata_dir/peer_list) holds.
+
+    Garage saves it as a MessagePack array of (node ID, address), every minute: a node
+    restarted before its peers are saved doesn't find them again.
+    """
+    if not data:
+        return 0
+    head = data[0]
+    if 0x90 <= head <= 0x9F:
+        return head & 0x0F
+    if head == 0xDC and len(data) >= 3:
+        return int.from_bytes(data[1:3], "big")
+    if head == 0xDD and len(data) >= 5:
+        return int.from_bytes(data[1:5], "big")
+    raise ValueError("not a saved peer list (first byte 0x%02x)" % head)
