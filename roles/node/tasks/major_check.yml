@@ -50,9 +50,24 @@
                   ~ " convert its metadata with garage node convert-db first (Garage's release notes)." }}
         quiet: true
 
+    - name: Check the RPC addresses stay
+      vars:
+        new: "{{ garage_node_settings_defaults | combine(garage_node_settings, recursive=true) }}"
+        old: "{{ garage_node_existing_config }}"
+        changed: >-
+          {{ (['rpc_bind_addr'] if new.rpc_bind_addr | default('') != old.rpc_bind_addr | default('') else [])
+             + (['rpc_public_addr'] if new.rpc_public_addr | default('') != old.rpc_public_addr | default('') else []) }}
+      ansible.builtin.assert:
+        that: changed | length == 0
+        fail_msg: >-
+          garage_node_settings changes {{ changed | join(' and ') }} in a major upgrade: every
+          node restarts at once and finds the others only at the addresses it saved. Change the
+          addresses in another run.
+        quiet: true
+
     - name: Ask the node for its ID and the cluster's status and health
       ansible.builtin.command:
-        argv: "{{ garage_node_garage + item }}"
+        argv: "{{ garage_node_cli + item }}"
       loop:
         - [node, id, -q]
         - [json-api, GetClusterStatus]

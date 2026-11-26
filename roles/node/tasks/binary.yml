@@ -5,7 +5,7 @@
 # service.yml restarts it.
 - name: Tell whether the binary is replaced
   ansible.builtin.set_fact:
-    garage_node_binary_needed: "{{ garage_node_upgrade != 'none' }}"
+    garage_node_binary_needed: "{{ garage_node_disk_version != garage_node_version }}"
     garage_node_binary_checksum: >-
       sha256:{{ garage_node_checksum if garage_node_checksum != ''
                 else garage_node_checksums[garage_node_version][garage_node_arch] }}

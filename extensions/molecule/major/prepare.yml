@@ -25,3 +25,20 @@
         argv: [/usr/local/bin/garage, --config, /etc/garage/garage.toml, json-api, CreateBucket, '{"globalAlias": "major-probe"}']
       changed_when: true
       run_once: true
+
+# A run interrupted after it replaced the binary and before it restarted: the first node has
+# v3 on disk and still runs v2. The upgrade must still be a major upgrade, run with the
+# running node's own binary.
+- name: Leave the first node half-upgraded
+  hosts: garage-major-1
+  become: true
+  tasks:
+    - name: Put the v3 binary in place without restarting
+      ansible.builtin.get_url:
+        url: https://garagehq.deuxfleurs.fr/_releases/0ed12c39962dd0d8481f5d9152663631cc20f4bb/x86_64-unknown-linux-musl/garage
+        checksum: sha256:c6e322fa2dc464dc1b78abad55e951f8a55b1a6e3a54888b9b25c55dd034fbe9
+        dest: /usr/local/bin/garage
+        mode: "0755"
+        force: true
+      retries: 3
+      delay: 10
