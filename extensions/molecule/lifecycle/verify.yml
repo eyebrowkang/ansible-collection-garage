@@ -1,6 +1,6 @@
 ---
-# Removed: the binary, the unit, /etc/garage and the user are gone; the metadata, the data
-# and /var/lib/garage stay.
+# Removed: the binary, the unit and /etc/garage are gone; the metadata, the data,
+# /var/lib/garage and the garage user that owns them stay.
 - name: Verify
   hosts: all
   become: true
@@ -36,9 +36,9 @@
         key: garage
         fail_key: false
 
-    - name: Check the garage user is gone
+    - name: Check the garage user stays, owning the data
       ansible.builtin.assert:
-        that: ansible_facts.getent_passwd.garage is none
+        that: ansible_facts.getent_passwd.garage is not none
 
     - name: Read the services as systemd reports them
       ansible.builtin.service_facts:
