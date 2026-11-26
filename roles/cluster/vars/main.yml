@@ -1,0 +1,61 @@
+---
+# Internal data for the cluster role: overriding it isn't supported. The paths are the node
+# role's (its vars/main.yml); tests/unit/test_role_interface.py keeps them equal.
+garage_cluster_binary_path: /usr/local/bin/garage
+garage_cluster_config_path: /etc/garage/garage.toml
+
+# The command that reaches the local node over RPC, with only the RPC secret.
+garage_cluster_garage:
+  - "{{ garage_cluster_binary_path }}"
+  - --config
+  - "{{ garage_cluster_config_path }}"
+
+# How long to wait for the nodes to see each other, and the cluster to be healthy.
+garage_cluster_wait_retries: 30
+garage_cluster_wait_delay: 2
+
+# The variables of the eyebrowkang.garage role: the node role's list.
+garage_cluster_role_variables:
+  - garage_version
+  - garage_user
+  - garage_group
+  - garage_home
+  - garage_config_dir
+  - garage_data_dir
+  - garage_data_dirs
+  - garage_metadata_dir
+  - garage_db_engine
+  - garage_replication_factor
+  - garage_rpc_secret
+  - garage_rpc_secret_file
+  - garage_rpc_bind_addr
+  - garage_rpc_public_addr
+  - garage_bootstrap_peers
+  - garage_s3_region
+  - garage_s3_api_bind_addr
+  - garage_s3_root_domain
+  - garage_s3_public_endpoint
+  - garage_s3_web_bind_addr
+  - garage_s3_web_root_domain
+  - garage_admin_api_bind_addr
+  - garage_admin_healthcheck_host
+  - garage_healthcheck_enabled
+  - garage_admin_token
+  - garage_admin_token_file
+  - garage_metrics_token
+  - garage_metrics_token_file
+  - garage_cluster_connect
+  - garage_cluster_hosts
+  - garage_layout_init
+  - garage_layout_zone
+  - garage_layout_capacity
+  - garage_layout_gateway
+  - garage_layout_tags
+  - garage_upgrade
+  - garage_upgrade_precheck
+  - garage_checksum
+  - garage_download_url
+  - garage_download_local
+  - garage_config_template
+  - garage_no_log
+  - garage_env_variables

@@ -1,0 +1,8 @@
+---
+minor_changes:
+  - >-
+    cluster - a new role that connects the nodes of the play and applies the first layout when
+    the cluster has none, through the admin API over RPC (``garage json-api``).
+  - >-
+    node - a restarted node must be as healthy as before (``GetClusterHealth`` over RPC) before
+    the next one stops, instead of answering on the admin API's ``/health``.

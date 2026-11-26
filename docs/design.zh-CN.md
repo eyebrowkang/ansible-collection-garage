@@ -90,8 +90,8 @@ Garage v3 正式发布时，collection 发布 1.0，并且 1.0 能把集群从 v
 
 保证：
 
-- 写入任何东西之前，role 检查它依赖的内容：`metadata_dir`、`data_dir`、`replication_factor`、
-  `rpc_bind_addr` 和 `[admin]` 的 `api_bind_addr` 已设置；RPC 密钥是 32 字节的十六进制；需要比
+- 写入任何东西之前，role 检查它依赖的内容：`metadata_dir`、`data_dir`、`replication_factor` 和
+  `rpc_bind_addr` 已设置；RPC 密钥是 32 字节的十六进制；需要比
   `garage_node_version` 更新的 Garage 才支持的选项（例如 v2.5.0 之前的 `[s3_api] public_endpoint`）
   会被拒绝，因为旧版本会静默忽略它们。
 - `garage.toml` 属于 `root:garage`，权限 `0640`。密钥文件属于 `garage:garage`，权限 `0600`：密钥文件能被
@@ -109,8 +109,9 @@ Garage v3 正式发布时，collection 发布 1.0，并且 1.0 能把集群从 v
 保证：
 
 - 没在运行的节点会被启动。
-- 对运行中节点的变更会重启它，在整个 play 范围内一次一个节点。只有重启的节点向集群报告健康后，下一个
-  节点才会停止。
+- 对运行中节点的变更会重启它，在整个 play 范围内一次一个节点。只有重启的节点恢复到重启前的健康程度
+  （以 Garage 通过 RPC 报告的 `GetClusterHealth` 为准：连接的节点数、在线的存储节点数都不少于重启前，
+  重启前集群健康的，现在也要健康），下一个节点才会停止。两分钟内达不到的节点会中止运行。
 - 同一次运行中配置和二进制都有变更时，节点只重启一次。
 
 限制：
@@ -149,8 +150,8 @@ Garage v2 到 v3（以后的大版本同理）。步骤遵循 Garage 的
 - 只有当集群还没有 layout（layout 版本为 0）时才应用首个 layout。play 中的每个节点都必须先连接上，
   并且每个节点都要有 zone 和 capacity，或者是 gateway。
 - 已有 layout 的集群永远不会被改动。
-- `cluster` 在节点上经 RPC 运行 `garage` CLI：只需要 RPC 密钥，不需要 admin token。CLI 的输出由插件解析，
-  插件针对每个受支持的大版本做单元测试。
+- `cluster` 在节点上通过 `garage json-api` 经 RPC 调用 admin API：只需要 RPC 密钥，不需要 admin token，
+  读取的是 JSON。它用到的 admin API v2 接口在每个受支持的版本中都有；结果由插件读取，并有单元测试。
 
 限制：
 

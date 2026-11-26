@@ -1,0 +1,29 @@
+---
+argument_specs:
+  main:
+    short_description: Makes Garage nodes one cluster the first time
+    description:
+      - Connects every node of the play to every other, and applies the first layout when the
+        cluster has none. A cluster that has a layout is never changed. Runs after the node
+        role, on running nodes. See docs/design.md, "Cluster bootstrap".
+    options:
+      garage_cluster_zone:
+        type: str
+        required: true
+        description:
+          - The zone of this node's layout role.
+      garage_cluster_capacity:
+        type: raw
+        description:
+          - The capacity of this storage node - bytes, or a size as Garage's CLI reads it
+            (C(1T), C(500G), C(1.5TiB)). Exclusive with garage_cluster_gateway.
+      garage_cluster_gateway:
+        type: bool
+        description:
+          - This node is a gateway - it serves the APIs and stores nothing. Exclusive with
+            garage_cluster_capacity.
+      garage_cluster_tags:
+        type: list
+        elements: str
+        description:
+          - The tags of this node's layout role.

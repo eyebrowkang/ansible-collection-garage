@@ -1,0 +1,10 @@
+---
+# tasks for the eyebrowkang.garage.cluster role
+- name: Run preflight checks
+  ansible.builtin.include_tasks: preflight.yml
+
+- name: Connect the nodes
+  ansible.builtin.include_tasks: connect.yml
+
+- name: Apply the first layout
+  ansible.builtin.include_tasks: layout.yml

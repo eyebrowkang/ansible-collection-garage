@@ -17,6 +17,7 @@ What the collection does, and what it doesn't on purpose: [docs/design.md](docs/
 | Role | What it manages |
 | ---- | --------------- |
 | [`eyebrowkang.garage.node`](roles/node/README.md) | A Garage node: the binary, its user, the systemd unit, `garage.toml` and its secrets, and their upgrades |
+| [`eyebrowkang.garage.cluster`](roles/cluster/README.md) | Makes the nodes one cluster the first time: connects them and applies the first layout |
 
 ## Requirements
 

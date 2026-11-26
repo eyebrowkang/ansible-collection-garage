@@ -1,0 +1,60 @@
+---
+# A cluster: three storage nodes in three zones and a gateway, each a docker container. The
+# node role installs them, the cluster role connects them and applies the first layout; a
+# side effect then changes every node, which restart one at a time (docs/design.md,
+# "Restarts" and "Cluster bootstrap"). The default scenario's create/destroy playbooks.
+# community.docker comes from the default scenario's collections.yml (make deps).
+dependency:
+  name: galaxy
+  enabled: false
+
+driver:
+  name: default
+  options:
+    managed: true
+
+platforms:
+  - name: garage-cluster-1
+    image: &image "${MOLECULE_IMAGE:-geerlingguy/docker-debian13-ansible:latest}"
+    systemd: true
+    groups: &groups [garage_nodes, docker_instances]
+  - name: garage-cluster-2
+    image: *image
+    systemd: true
+    groups: *groups
+  - name: garage-cluster-3
+    image: *image
+    systemd: true
+    groups: *groups
+  - name: garage-cluster-gw
+    image: *image
+    systemd: true
+    groups: *groups
+
+provisioner:
+  name: ansible
+  playbooks:
+    create: ../default/create.yml
+    destroy: ../default/destroy.yml
+    converge: converge.yml
+    side_effect: side_effect.yml
+    verify: verify.yml
+  inventory:
+    links:
+      group_vars: inventory/group_vars/
+      host_vars: inventory/host_vars/
+
+verifier:
+  name: ansible
+
+scenario:
+  name: cluster
+  test_sequence:
+    - destroy
+    - syntax
+    - create
+    - converge
+    - idempotence
+    - side_effect
+    - verify
+    - destroy

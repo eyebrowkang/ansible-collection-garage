@@ -110,8 +110,7 @@ Limits:
 Guarantees:
 
 - Before anything is written, the role checks what it relies on: `metadata_dir`,
-  `data_dir`, `replication_factor`, `rpc_bind_addr` and the `[admin]` `api_bind_addr` are
-  set; the RPC secret is 32 bytes of hex; settings that need a newer Garage than
+  `data_dir`, `replication_factor` and `rpc_bind_addr` are set; the RPC secret is 32 bytes of hex; settings that need a newer Garage than
   `garage_node_version` (such as `[s3_api] public_endpoint` before v2.5.0) are refused,
   because older releases silently ignore them.
 - `garage.toml` is `root:garage`, mode `0640`. The secret files are `garage:garage`, mode
@@ -131,7 +130,10 @@ Guarantees:
 
 - A node that isn't running is started.
 - A change to a running node restarts it, one node at a time across the play. The next
-  node stops only when the restarted one reports itself healthy to the cluster.
+  node stops only when the restarted one is as healthy as it was, as Garage reports it
+  (`GetClusterHealth`, over RPC): connected to as many nodes, with as many storage nodes
+  up, and the cluster healthy if it was. A node that doesn't get there within two minutes
+  stops the run.
 - A configuration change and a binary change in one run restart a node once.
 
 Limits:
@@ -176,9 +178,9 @@ Guarantees:
   node of the play must be connected first, and each must have a zone and a capacity, or
   be a gateway.
 - A cluster that has a layout is never changed.
-- `cluster` runs the `garage` CLI on the nodes, over RPC: it needs only the RPC secret, no
-  admin token. Plugins parse the CLI's output, with unit tests for each supported major
-  version.
+- `cluster` calls the admin API through `garage json-api` on the nodes, over RPC: it needs
+  only the RPC secret, no admin token, and reads JSON. The admin API's v2 endpoints it uses
+  are in every supported version; plugins read their results, with unit tests.
 
 Limits:
 
