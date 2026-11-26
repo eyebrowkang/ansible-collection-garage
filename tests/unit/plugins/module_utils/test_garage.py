@@ -287,6 +287,24 @@ def test_health_regressions():
     ]
 
 
+def test_health_regressions_from_degraded_to_unavailable():
+    """degraded keeps quorum, unavailable doesn't: worse even with the same node counts."""
+    before = dict(HEALTHY, status="degraded", partitionsAllOk=0)
+    after = dict(before, status="unavailable", partitionsQuorum=100)
+    assert garage.health_regressions(after, before) == [
+        "100 partitions with quorum, 256 before",
+        "the cluster is unavailable, it was degraded",
+    ]
+
+
+def test_health_regressions_with_v2_0_field_names():
+    """Garage v2.0 calls storageNodesUp storageNodesOk."""
+    before = {"status": "healthy", "connectedNodes": 3, "storageNodesOk": 3}
+    assert garage.health_regressions(dict(before, storageNodesOk=2), before) == [
+        "2 storage nodes up, 3 before",
+    ]
+
+
 def test_health_regressions_from_a_degraded_cluster():
     before = dict(HEALTHY, status="degraded", storageNodesUp=2, connectedNodes=3)
     assert garage.health_regressions(dict(before), before) == []
