@@ -6,11 +6,22 @@
 - name: Tell whether this run is a major upgrade
   ansible.builtin.set_fact:
     garage_node_major: >-
-      {{ 'major' in (ansible_play_hosts | map('extract', hostvars, 'garage_node_upgrade') | list) }}
+      {{ 'major' in (ansible_play_batch | map('extract', hostvars)
+                     | selectattr('garage_node_upgrade', 'defined')
+                     | map(attribute='garage_node_upgrade') | list) }}
 
 - name: Check the major upgrade
   when: garage_node_major | bool
   block:
+    - name: Check the play isn't split in batches
+      ansible.builtin.assert:
+        that: ansible_play_batch | length == ansible_play_hosts_all | length
+        fail_msg: >-
+          A major upgrade stops every node at once: run it without serial (this batch has
+          {{ ansible_play_batch | length }} of the play's {{ ansible_play_hosts_all | length }} hosts).
+        quiet: true
+      run_once: true
+
     - name: Check every node goes from the same version to the same version
       vars:
         moves: >-
@@ -23,15 +34,6 @@
         fail_msg: >-
           A major upgrade moves every node of the cluster at once, from one version to one
           version. The play's nodes go {{ dict(ansible_play_hosts | zip(moves)) | to_json }}.
-        quiet: true
-      run_once: true
-
-    - name: Check the play isn't split in batches
-      ansible.builtin.assert:
-        that: ansible_play_batch | length == ansible_play_hosts_all | length
-        fail_msg: >-
-          A major upgrade stops every node at once: run it without serial (this batch has
-          {{ ansible_play_batch | length }} of the play's {{ ansible_play_hosts_all | length }} hosts).
         quiet: true
       run_once: true
 
