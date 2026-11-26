@@ -73,6 +73,6 @@ with as many storage nodes up, and the cluster healthy if it was. See [docs/desi
 
 ## Removing
 
-`garage_node_state: absent` stops and disables Garage, and removes the binary, the unit,
-`/etc/garage` and the `garage` user. The metadata and data directories stay, and so does
-`/var/lib/garage`.
+`garage_node_state: absent` stops and disables Garage, and removes the binary, the unit and
+`/etc/garage`. The metadata and data directories stay, and so do `/var/lib/garage` and the
+`garage` user and group that own them: a node installed again finds its data readable.
