@@ -1,0 +1,15 @@
+---
+minor_changes:
+  - >-
+    node - major upgrades (v2 to v3) with ``garage_node_major_upgrade: true``: checks the whole
+    cluster is in the play, on one version, healthy, off fjall and with its peers saved; repairs
+    the tables and snapshots the metadata with the installed binary; then stops every node and
+    starts every node on the new binary and configuration.
+  - >-
+    node - Garage v3.0.0-beta1, from a table naming pre-releases that report their commit, for
+    testing the major upgrade before v3.0.0.
+  - >-
+    node - changing ``db_engine`` on a node with data is refused, like its directories.
+bugfixes:
+  - >-
+    node, cluster - failure messages showed a backslash before apostrophes.

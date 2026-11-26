@@ -2,10 +2,15 @@
 # A node that isn't running is started. A running node with a change is restarted once for
 # all of them, one node at a time across the play, each healthy before the next one stops
 # (docs/design.md, "Restarts").
+- name: Restart every node at once onto the new major version
+  ansible.builtin.include_tasks: major_restart.yml
+  when: garage_node_major | bool
+
+# A major upgrade restarted every node already.
 - name: Tell whether the node is restarted
   ansible.builtin.set_fact:
     garage_node_restart_needed: >-
-      {{ (garage_node_running | bool and (
+      {{ (not garage_node_major | bool and garage_node_running | bool and (
            garage_node_binary is changed or garage_node_secrets is changed
            or garage_node_secrets_removed is changed or garage_node_config is changed
            or garage_node_unit is changed or garage_node_dropin is changed

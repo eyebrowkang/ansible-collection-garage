@@ -106,6 +106,12 @@ garage_node_arch: "{{ garage_node_arch_map[ansible_facts['architecture']] | defa
 # Controller directory caching one download, per URL.
 garage_node_controller_cache: "{{ garage_node_cache_dir | expanduser }}/{{ garage_node_url | hash('sha1') }}"
 
+# Pre-releases Garage publishes only as builds of their commit: their binary reports the
+# commit instead of a version, which this names. Until v3.0.0's release (docs/design.md,
+# "Major upgrades").
+garage_node_prereleases:
+  v3.0.0-beta1: 0ed12c39962dd0d8481f5d9152663631cc20f4bb
+
 # SHA256 of each release's binary, by architecture: the trust root (docs/design.md,
 # principle 2). scripts/update-checksums.sh measures a new release.
 garage_node_checksums:
@@ -149,3 +155,8 @@ garage_node_checksums:
     aarch64-unknown-linux-musl: "529903efab83da4a0284e66891edcec6491af26e2dacca148f860245d39e7ff4"
     armv6l-unknown-linux-musleabihf: "7c09d019ae1c6a30a4ebeeddeab538d68f136176d5bfe5b2f71acd9cc76855b2"
     i686-unknown-linux-musl: "1b7d0d372eeeb8f9927d62ad46a0f99453f65002a975536b0037139c3b20f185"
+  v3.0.0-beta1:
+    x86_64-unknown-linux-musl: "c6e322fa2dc464dc1b78abad55e951f8a55b1a6e3a54888b9b25c55dd034fbe9"
+    aarch64-unknown-linux-musl: "9d70e1911a65d971d92577b93a2bb2300d93aa6984bdc613646cfbdeffec411f"
+    armv6l-unknown-linux-musleabihf: "15bd2b5afd18e9a6fd35ac2081f95cb85e1decb139fcb82b60e98439c38466cb"
+    i686-unknown-linux-musl: "d89a71c909cd24dfdf5336d55befc10138db1899dcefe279301ba1f23cd1a77a"

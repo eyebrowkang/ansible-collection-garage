@@ -1,0 +1,27 @@
+---
+# A v2 cluster deployed with the collection, a bucket in it, and each node's ID recorded.
+- name: Deploy the v2 cluster
+  hosts: all
+  become: true
+  roles:
+    - role: eyebrowkang.garage.node
+      vars:
+        garage_node_version: "{{ major_from }}"
+    - role: eyebrowkang.garage.cluster
+  tasks:
+    - name: Ask the node for its ID
+      ansible.builtin.command: /usr/local/bin/garage --config /etc/garage/garage.toml node id -q
+      register: prepare_node_id
+      changed_when: false
+
+    - name: Record the node's ID
+      ansible.builtin.copy:
+        content: "{{ prepare_node_id.stdout | eyebrowkang.garage.garage_node_id }}\n"
+        dest: /root/major-node-id
+        mode: "0600"
+
+    - name: Create a bucket
+      ansible.builtin.command:
+        argv: [/usr/local/bin/garage, --config, /etc/garage/garage.toml, json-api, CreateBucket, '{"globalAlias": "major-probe"}']
+      changed_when: true
+      run_once: true

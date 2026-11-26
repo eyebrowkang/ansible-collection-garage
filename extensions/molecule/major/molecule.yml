@@ -1,0 +1,63 @@
+---
+# The major upgrade, v2 to v3 (docs/design.md, "Major upgrades"). prepare deploys a v2.6.0
+# cluster with the collection - three storage nodes and a gateway - and creates a bucket.
+# converge upgrades it to v3.0.0-beta1, every node at once. side_effect changes a setting on
+# the v3 cluster (a rolling restart on v3), and checks a downgrade is refused. verify checks
+# the version, the identities, the layout, the bucket and the snapshot.
+dependency:
+  name: galaxy
+  enabled: false
+
+driver:
+  name: default
+  options:
+    managed: true
+
+platforms:
+  - name: garage-major-1
+    image: &image "${MOLECULE_IMAGE:-geerlingguy/docker-debian13-ansible:latest}"
+    systemd: true
+    groups: &groups [garage_nodes, docker_instances]
+  - name: garage-major-2
+    image: *image
+    systemd: true
+    groups: *groups
+  - name: garage-major-3
+    image: *image
+    systemd: true
+    groups: *groups
+  - name: garage-major-gw
+    image: *image
+    systemd: true
+    groups: *groups
+
+provisioner:
+  name: ansible
+  playbooks:
+    create: ../default/create.yml
+    destroy: ../default/destroy.yml
+    prepare: prepare.yml
+    converge: converge.yml
+    side_effect: side_effect.yml
+    verify: verify.yml
+  inventory:
+    links:
+      group_vars: inventory/group_vars/
+      host_vars: inventory/host_vars/
+
+verifier:
+  name: ansible
+
+scenario:
+  name: major
+  test_sequence:
+    - destroy
+    - syntax
+    - create
+    - prepare
+    - check
+    - converge
+    - idempotence
+    - side_effect
+    - verify
+    - destroy

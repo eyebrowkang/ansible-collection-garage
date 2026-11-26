@@ -57,8 +57,9 @@ Garage v3 正式发布时，collection 发布 1.0，并且 1.0 能把集群从 v
    - 所有检查（包括跨主机的）都在任何改动之前完成。失败时说明什么失败了、为什么，并保留 Garage 自己的信息。
    - 前置条件由主机提供：role 只检查，从不安装。
 6. **集群的身份永远不受威胁。**
-   - 节点的身份和数据在 `metadata_dir` 和 `data_dir` 里。在已有数据的节点上改变其中任何一个都会被拒绝：
-     否则 Garage 会作为一个新的空节点启动。
+   - 节点的身份和数据在 `metadata_dir` 和 `data_dir` 里，由 `db_engine` 对应的元数据引擎读取。在已有
+     数据的节点上改变其中任何一个都会被拒绝：否则 Garage 会作为一个新的空节点启动。（移动目录，或用
+     `garage node convert-db` 转换元数据，是管理员的事。）
    - `metadata_dir` 和 `data_dir` 下的任何东西都不会被删除，`absent` 也不会。
 7. **密钥不进日志。**
    - 密钥不出现在 `garage.toml`、命令行、任务输出和 `--diff` 中。
@@ -132,10 +133,14 @@ Garage v2 到 v3（以后的大版本同理）。步骤遵循 Garage 的
 
 - 只有当 `garage_node_version` 跨越大版本，**并且** `garage_node_major_upgrade: true` 时，才会
   执行大版本升级。否则在任何改动之前就拒绝。
-- 改动之前先检查：集群的每个节点都在 play 中，没有被 `serial` 漏掉；所有节点运行同一版本；集群健康；
-  没有节点使用 `db_engine = "fjall"`。
-- 然后：`garage repair --all-nodes --yes tables`、`garage meta snapshot --all`，所有节点停止，所有节点
-  换上新二进制，所有节点启动，运行等待集群恢复健康。该版本的 Garage 指南要求的迁移步骤在此时执行。
+- 改动之前先检查：集群的每个节点（在 layout 中的，或在线的）都在 play 中，没有被 `serial` 漏掉；所有
+  节点都从同一版本升级到同一版本；每个节点都在运行，集群健康；没有节点使用 `db_engine = "fjall"`；每个
+  节点都已保存它的 peer，重启后能重新找到它们。
+- 然后，先用已安装的二进制执行 `garage repair --all-nodes --yes tables` 和 `garage meta snapshot --all`。
+  接着所有节点换上新二进制和配置，所有节点停止，所有节点启动，每个节点都要恢复到升级前的健康程度（见
+  [重启](#重启)）。该版本的 Garage 指南要求的迁移步骤在此时执行：v3 的指南还没有发布。
+- Garage 只以 commit 构建形式发布的预发布版本（v3.0.0-beta1）报告的是 commit 而不是版本号：collection
+  用自带的一张表（与 checksum 放在一起）给它命名。这是为了在 v3.0.0 发布前测试升级，v3.0.0 发布后就去掉。
 - 停机时间就是所有节点停止再启动的时间，健康的集群一分钟以内。
 
 限制：

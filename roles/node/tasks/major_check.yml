@@ -1,0 +1,98 @@
+---
+# A major upgrade stops every node of the cluster at once (Garage nodes of different major
+# versions can't talk to each other). Before anything changes, it checks the whole cluster is
+# in the play, on one version, healthy, and able to find itself again after the restart
+# (docs/design.md, "Major upgrades"). The probes run on the installed binary.
+- name: Tell whether this run is a major upgrade
+  ansible.builtin.set_fact:
+    garage_node_major: >-
+      {{ 'major' in (ansible_play_hosts | map('extract', hostvars, 'garage_node_upgrade') | list) }}
+
+- name: Check the major upgrade
+  when: garage_node_major | bool
+  block:
+    - name: Check every node goes from the same version to the same version
+      vars:
+        moves: >-
+          {{ ansible_play_hosts | map('extract', hostvars, 'garage_node_current_version') | map('default', 'none', true)
+             | zip(ansible_play_hosts | map('extract', hostvars, 'garage_node_version')) | map('join', ' -> ') | list }}
+      ansible.builtin.assert:
+        that:
+          - ansible_play_hosts | map('extract', hostvars, 'garage_node_upgrade') | unique == ['major']
+          - moves | unique | length == 1
+        fail_msg: >-
+          A major upgrade moves every node of the cluster at once, from one version to one
+          version. The play's nodes go {{ dict(ansible_play_hosts | zip(moves)) | to_json }}.
+        quiet: true
+      run_once: true
+
+    - name: Check the play isn't split in batches
+      ansible.builtin.assert:
+        that: ansible_play_batch | length == ansible_play_hosts_all | length
+        fail_msg: >-
+          A major upgrade stops every node at once: run it without serial (this batch has
+          {{ ansible_play_batch | length }} of the play's {{ ansible_play_hosts_all | length }} hosts).
+        quiet: true
+      run_once: true
+
+    - name: Check the node runs, on a metadata engine the new version reads
+      ansible.builtin.assert:
+        that:
+          - garage_node_running | bool
+          - garage_node_existing_config.db_engine | default('lmdb') != 'fjall'
+        fail_msg: >-
+          {{ "Garage doesn't run on this node: a major upgrade checks the cluster from every"
+             ~ ' node first. Start it, or upgrade by hand.'
+             if not garage_node_running | bool
+             else "This node uses db_engine fjall, whose files the new major version can't read:"
+                  ~ " convert its metadata with garage node convert-db first (Garage's release notes)." }}
+        quiet: true
+
+    - name: Ask the node for its ID and the cluster's status and health
+      ansible.builtin.command:
+        argv: "{{ garage_node_garage + item }}"
+      loop:
+        - [node, id, -q]
+        - [json-api, GetClusterStatus]
+        - [json-api, GetClusterHealth]
+      register: garage_node_major_probe
+      changed_when: false
+      check_mode: false
+
+    - name: Gather what the node reports
+      ansible.builtin.set_fact:
+        garage_node_major_id: "{{ garage_node_major_probe.results[0].stdout | eyebrowkang.garage.garage_node_id }}"
+        garage_node_major_status: "{{ garage_node_major_probe.results[1].stdout | from_json }}"
+        garage_node_health_floor: "{{ garage_node_major_probe.results[2].stdout | from_json }}"
+
+    - name: Check every node of the cluster is in the play, and the cluster is healthy
+      vars:
+        play_ids: "{{ ansible_play_hosts | map('extract', hostvars, 'garage_node_major_id') | list }}"
+        cluster_ids: >-
+          {{ (garage_node_major_status.nodes | selectattr('role') | map(attribute='id') | list)
+             + (garage_node_major_status.nodes | selectattr('isUp') | map(attribute='id') | list) }}
+        missing: "{{ cluster_ids | unique | difference(play_ids) }}"
+      ansible.builtin.assert:
+        that:
+          - missing | length == 0
+          - garage_node_health_floor.status == 'healthy'
+        fail_msg: >-
+          {{ "Nodes of the cluster aren't in the play: " ~ (missing | map('truncate', 16, true, '') | join(', '))
+             ~ '. A major upgrade stops every node at once, and a node left on the old version'
+             ~ " can't talk to the others."
+             if missing | length > 0
+             else "The cluster isn't healthy (" ~ garage_node_health_floor.status ~ ' from this node):'
+                  ~ ' a major upgrade starts from a healthy cluster.' }}
+        quiet: true
+
+    # After the restart, a node finds the others only through its saved peers.
+    - name: Wait until the node has saved its peers
+      ansible.builtin.slurp:
+        src: "{{ garage_node_existing_config.metadata_dir }}/peer_list"
+      register: garage_node_major_peers
+      until: >-
+        garage_node_major_peers is not failed
+        and (garage_node_major_peers.content | eyebrowkang.garage.garage_peer_list_count)
+            >= garage_node_health_floor.connectedNodes - 1
+      retries: "{{ garage_node_peers_retries }}"
+      delay: "{{ garage_node_wait_delay }}"

@@ -8,14 +8,15 @@ short_description: Filters for a Garage node's configuration and versions
 description:
   - C(to_toml) writes a mapping as C(garage.toml).
   - C(from_toml) reads C(garage.toml) into a mapping.
-  - C(garage_version) is the version in C(garage --version) output, such as C(v2.6.0).
+  - C(garage_version) is the version in C(garage --version) output, such as C(v2.6.0); a
+    pre-release that reports its commit is named by the mapping given (version to commit).
   - C(garage_compare_versions) compares two versions - -1, 0 or 1.
   - C(garage_upgrade_kind) is what going from one version to another is - C(install), C(none),
     C(minor), C(major), C(downgrade) or C(skip-major).
   - C(garage_settings_problems) lists what's wrong with C(garage_node_settings) for a version.
   - C(garage_node_paths) lists the directories a node writes.
-  - C(garage_changed_identity_dirs) lists the identity directories that differ from an
-    existing C(garage.toml).
+  - C(garage_changed_identity) lists what of a node's identity (C(metadata_dir),
+    C(data_dir), C(db_engine)) differs from an existing C(garage.toml).
   - C(garage_node_id) is the node ID in C(garage node id -q) output.
   - C(garage_node_address) is the RPC address a node reports for itself in C(GetClusterStatus).
   - C(garage_nodes_to_connect) lists the C(<id>@<addr>) of the wanted nodes a status doesn't see up.
@@ -84,8 +85,8 @@ def from_toml(text):
         raise AnsibleFilterError("not valid TOML: %s" % error) from error
 
 
-def garage_version(text):
-    return garage.parse_version(str(text) if text is not None else "")
+def garage_version(text, prereleases=None):
+    return garage.parse_version(str(text) if text is not None else "", _plain(prereleases or {}))
 
 
 def garage_compare_versions(left, right):
@@ -110,8 +111,8 @@ def garage_node_paths(settings):
     return garage.node_paths(_plain(settings))
 
 
-def garage_changed_identity_dirs(existing, settings):
-    return garage.changed_identity_dirs(_plain(existing), _plain(settings))
+def garage_changed_identity(existing, settings):
+    return garage.changed_identity(_plain(existing), _plain(settings))
 
 
 def garage_node_id(text):
@@ -164,7 +165,7 @@ class FilterModule:
             "garage_upgrade_kind": garage_upgrade_kind,
             "garage_settings_problems": garage_settings_problems,
             "garage_node_paths": garage_node_paths,
-            "garage_changed_identity_dirs": garage_changed_identity_dirs,
+            "garage_changed_identity": garage_changed_identity,
             "garage_node_id": garage_node_id,
             "garage_node_address": garage_node_address,
             "garage_nodes_to_connect": garage_nodes_to_connect,

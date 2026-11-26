@@ -103,7 +103,7 @@
       ansible.builtin.assert:
         that:
           - garage_node_downloaded.rc == 0
-          - (garage_node_downloaded.stdout | eyebrowkang.garage.garage_version) == garage_node_version
+          - (garage_node_downloaded.stdout | eyebrowkang.garage.garage_version(garage_node_prereleases)) == garage_node_version
         fail_msg: >-
           {{ garage_node_url }} is not Garage {{ garage_node_version }}: it reports
           "{{ garage_node_downloaded.stdout | default('') }}{{ garage_node_downloaded.stderr | default('') }}".

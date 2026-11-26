@@ -71,8 +71,10 @@ to v3. Before 1.0 it isn't published to Galaxy and isn't meant for production.
      and why, and keeps Garage's own message.
    - Prerequisites come from the host: the roles check them and never install them.
 6. **The cluster's identity is never at stake.**
-   - A node's identity and data live in `metadata_dir` and `data_dir`. Changing either on a
-     node that already has data is refused: Garage would start as a new, empty node.
+   - A node's identity and data live in `metadata_dir` and `data_dir`, in the metadata
+     engine `db_engine` reads. Changing any of them on a node that already has data is
+     refused: Garage would start as a new, empty node. (Moving the directories, or
+     converting the metadata with `garage node convert-db`, is the admin's.)
    - Nothing under `metadata_dir` or `data_dir` is ever removed, not even by `absent`.
 7. **Secrets stay out of the logs.**
    - The secrets are never in `garage.toml`, a command line, task output or `--diff`.
@@ -157,12 +159,19 @@ Guarantees:
 
 - A major upgrade runs only when `garage_node_version` crosses a major version *and*
   `garage_node_major_upgrade: true`. Otherwise it's refused before anything changes.
-- Before anything changes, it checks: every node of the cluster is in the play and none is
-  left out by `serial`; every node runs the same version; the cluster is healthy; no node
-  uses `db_engine = "fjall"`.
-- Then: `garage repair --all-nodes --yes tables`, `garage meta snapshot --all`, every node
-  stops, every node gets the new binary, every node starts, and the run waits for the
-  cluster to be healthy. Any migration Garage's guide for that version requires runs then.
+- Before anything changes, it checks: every node of the cluster (in the layout, or up) is in
+  the play and none is left out by `serial`; every node goes from the same version to the
+  same version; every node runs, and the cluster is healthy; no node uses
+  `db_engine = "fjall"`; every node has saved its peers, so it finds them again after the
+  restart.
+- Then, with the installed binary: `garage repair --all-nodes --yes tables` and
+  `garage meta snapshot --all`. Then every node gets the new binary and configuration,
+  every node stops, every node starts, and each must be back as healthy as before the
+  upgrade (see [Restarts](#restarts)). Any migration Garage's guide for that version
+  requires runs then: v3's guide isn't published yet.
+- A pre-release that Garage publishes only as a build of its commit (v3.0.0-beta1) reports
+  the commit instead of a version: the collection names it from a table of its own, next to
+  the checksums. This is for testing the upgrade before v3.0.0, and goes away with it.
 - Downtime is the time for every node to stop and start, under a minute on a healthy
   cluster.
 
