@@ -11,7 +11,7 @@
   ansible.builtin.set_fact:
     garage_node_restart_needed: >-
       {{ (not garage_node_major | bool and garage_node_running | bool and (
-           garage_node_binary is changed or garage_node_secrets is changed
+           garage_node_stale | bool or garage_node_binary is changed or garage_node_secrets is changed
            or garage_node_secrets_removed is changed or garage_node_config is changed
            or garage_node_unit is changed or garage_node_dropin is changed
            or garage_node_dropin_removed is changed)) | bool }}

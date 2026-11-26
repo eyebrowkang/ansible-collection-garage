@@ -8,9 +8,21 @@
   changed_when: true
   when: ansible_check_mode
 
+# Any host's failure ends the play for every host: a node left on the old version while the
+# others restart would split the cluster.
 - name: Restart every node on the new major version
   when: not ansible_check_mode
+  any_errors_fatal: true
   block:
+    - name: Check every node of the play is still there
+      ansible.builtin.assert:
+        that: ansible_play_hosts | length == ansible_play_hosts_all | length
+        fail_msg: >-
+          {{ ansible_play_hosts_all | difference(ansible_play_hosts) | join(', ') }} failed
+          before the restart: no node stops, the cluster stays on the old version.
+        quiet: true
+      run_once: true
+
     - name: Stop every node
       ansible.builtin.systemd_service:
         name: garage.service
