@@ -73,5 +73,5 @@ role 写成 TOML。
 
 ## 移除
 
-`garage_node_state: absent` 停止并禁用 Garage，删除二进制、unit、`/etc/garage` 和 `garage` 用户。
-元数据和数据目录保留，`/var/lib/garage` 也保留。
+`garage_node_state: absent` 停止并禁用 Garage，删除二进制、unit 和 `/etc/garage`。元数据和数据目录保留，
+`/var/lib/garage` 以及拥有它们的 `garage` 用户和用户组也保留：重新安装的节点仍能读取它的数据。

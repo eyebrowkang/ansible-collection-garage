@@ -11,8 +11,8 @@ argument_specs:
         choices: [present, absent]
         description:
           - C(present) installs or upgrades the node and starts it.
-          - C(absent) stops it and removes the binary, the unit, /etc/garage and the garage
-            user. The metadata and data directories stay.
+          - C(absent) stops it and removes the binary, the unit and /etc/garage. The metadata
+            and data directories stay, and so do the garage user and group that own them.
       garage_node_version:
         type: str
         description:

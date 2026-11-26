@@ -52,10 +52,11 @@
     - ansible_check_mode
 
 # One host runs the loop and restarts each node in turn, so the order holds across the play.
+# The batch's nodes only: with serial, ansible_play_hosts holds the earlier batches too.
 - name: Restart the changed nodes, one at a time
   ansible.builtin.include_tasks: restart.yml
   loop: >-
-    {{ ansible_play_hosts | map('extract', hostvars)
+    {{ ansible_play_batch | map('extract', hostvars)
        | selectattr('garage_node_restart_needed', 'defined')
        | selectattr('garage_node_restart_needed', 'equalto', true)
        | map(attribute='inventory_hostname') | list }}

@@ -184,9 +184,9 @@ Garage v2 到 v3（以后的大版本同理）。步骤遵循 Garage 的
 
 保证：
 
-- `node` 的 `absent` 停止并禁用 Garage，删除二进制、unit、`/etc/garage/`（`garage.toml` 和密钥文件）和
-  `garage` 用户。
-- `metadata_dir` 和 `data_dir` 保留。
+- `node` 的 `absent` 停止并禁用 Garage，删除二进制、unit 和 `/etc/garage/`（`garage.toml` 和密钥文件）。
+- `metadata_dir` 和 `data_dir` 保留，拥有它们的 `garage` 用户和用户组也保留：重新创建的用户可能得到不同的
+  ID，重装后的节点就读不了保留下来的数据。
 
 限制：
 
