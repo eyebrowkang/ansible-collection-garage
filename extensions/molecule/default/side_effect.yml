@@ -54,3 +54,46 @@
       ansible.builtin.assert:
         that: side_effect_same.status.MainPID == side_effect_back.status.MainPID
         fail_msg: The same inputs restarted the node.
+
+    # A run interrupted after writing a change and before restarting: the next run restarts
+    # the node onto it, though it writes nothing.
+    # systemd gives a process's start to the second: change the file a later second.
+    - name: Let a second pass since the process started
+      ansible.builtin.pause:
+        seconds: 2
+
+    - name: Make garage.toml newer than the running process, as an interrupted run would
+      ansible.builtin.file:
+        path: /etc/garage/garage.toml
+        state: touch
+        modification_time: now
+        access_time: preserve
+        owner: root
+        group: garage
+        mode: "0640"
+
+    - name: Run the node role after the interrupted run
+      ansible.builtin.include_role:
+        name: eyebrowkang.garage.node
+
+    - name: Read the service's process after the interrupted run's change
+      ansible.builtin.systemd_service:
+        name: garage.service
+      register: side_effect_resumed
+
+    - name: Check the node was restarted onto the files it didn't run yet
+      ansible.builtin.assert:
+        that: side_effect_resumed.status.MainPID != side_effect_same.status.MainPID
+
+    - name: Run the node role once more
+      ansible.builtin.include_role:
+        name: eyebrowkang.garage.node
+
+    - name: Read the service's process after that
+      ansible.builtin.systemd_service:
+        name: garage.service
+      register: side_effect_settled
+
+    - name: Check nothing was restarted
+      ansible.builtin.assert:
+        that: side_effect_settled.status.MainPID == side_effect_resumed.status.MainPID

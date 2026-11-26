@@ -170,10 +170,34 @@ def test_node_paths():
     assert garage.node_paths(settings) == ["/var/lib/garage/meta", "/a", "/b", "/snap"]
 
 
-def test_changed_identity_dirs():
+def test_changed_identity():
     existing = {"metadata_dir": "/m", "data_dir": [{"path": "/a", "capacity": "1T"}, {"path": "/b", "capacity": "1T"}]}
-    assert garage.changed_identity_dirs(existing, {"metadata_dir": "/m", "data_dir": [{"path": "/b"}, {"path": "/a"}]}) == []
-    assert garage.changed_identity_dirs(existing, {"metadata_dir": "/n", "data_dir": "/a"}) == ["metadata_dir", "data_dir"]
+    assert garage.changed_identity(existing, {"metadata_dir": "/m", "data_dir": [{"path": "/b"}, {"path": "/a"}]}) == []
+    assert garage.changed_identity(existing, {"metadata_dir": "/n", "data_dir": "/a"}) == ["metadata_dir", "data_dir"]
+
+
+@pytest.mark.parametrize("before, after, changed", [
+    ({}, {}, False),
+    ({}, {"db_engine": "lmdb"}, False),
+    ({"db_engine": "lmdb"}, {"db_engine": "sqlite"}, True),
+    ({"db_engine": "sqlite"}, {}, True),
+])
+def test_changed_identity_db_engine(before, after, changed):
+    base = {"metadata_dir": "/m", "data_dir": "/d"}
+    result = garage.changed_identity(dict(base, **before), dict(base, **after))
+    assert (result == ["db_engine"]) is changed
+
+
+PRERELEASES = {"v3.0.0-beta1": "0ed12c39962dd0d8481f5d9152663631cc20f4bb"}
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("garage 0ed12c39962dd0d8481f5d9152663631cc20f4bb [features: lmdb, webadmin]", "v3.0.0-beta1"),
+    ("garage 1111111111111111111111111111111111111111 [features: lmdb]", None),
+    ("garage v2.6.0 [features: lmdb]", "v2.6.0"),
+])
+def test_parse_version_of_a_prerelease(text, expected):
+    assert garage.parse_version(text, PRERELEASES) == expected
 
 
 # ---- the cluster ---------------------------------------------------------------------------

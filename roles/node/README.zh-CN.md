@@ -37,7 +37,7 @@
 | `garage_node_fetch` | `target` | 由谁下载二进制：主机（`target`），或者控制端（`controller`），再复制过去。 |
 | `garage_node_cache_dir` | `~/.cache/eyebrowkang.garage` | 控制端的下载缓存，用于 `garage_node_fetch: controller`。 |
 | `garage_node_systemd_override` | `""` | `garage.service` 的 drop-in，使用 systemd 自己的语法。 |
-| `garage_node_major_upgrade` | `false` | 允许 `garage_node_version` 跨越大版本，这会同时停止集群的所有节点。尚未实现。 |
+| `garage_node_major_upgrade` | `false` | 允许 `garage_node_version` 跨越大版本，这会同时停止集群的所有节点：见 [docs/design.zh-CN.md](../../docs/design.zh-CN.md) 的「大版本升级」。 |
 
 ## 配置
 

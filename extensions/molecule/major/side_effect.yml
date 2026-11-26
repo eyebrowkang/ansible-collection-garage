@@ -1,0 +1,31 @@
+---
+# On the v3 cluster: a changed setting restarts the nodes one at a time, and going back to v2
+# is refused before anything changes.
+- name: Change every node of the v3 cluster
+  hosts: all
+  become: true
+  roles:
+    - role: eyebrowkang.garage.node
+      vars:
+        garage_node_settings: "{{ hostvars[inventory_hostname].garage_node_settings | combine({'block_size': 2097152}) }}"
+
+- name: Refuse going back to v2
+  hosts: all
+  become: true
+  tasks:
+    - name: Run the node role with the old version
+      block:
+        - name: Run the node role with v2
+          ansible.builtin.include_role:
+            name: eyebrowkang.garage.node
+          vars:
+            garage_node_version: "{{ major_from }}"
+
+        - name: Unreachable
+          ansible.builtin.fail:
+            msg: The node role went back to v2.
+      rescue:
+        - name: Check the failure is the refused downgrade
+          ansible.builtin.assert:
+            that: "'go back to an older version' in ansible_failed_result.msg"
+            fail_msg: "Unexpected failure: {{ ansible_failed_result.msg | default(ansible_failed_result) }}"

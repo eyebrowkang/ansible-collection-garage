@@ -8,9 +8,10 @@ garage_node_state: present
 
 garage_node_checksum: ""
 # default(''): argument validation renders it on absent too, where there's no version.
+# A pre-release is published as a build of its commit (vars/main.yml).
 garage_node_url: >-
-  https://garagehq.deuxfleurs.fr/_releases/{{ garage_node_version | default('')
-  }}/{{ garage_node_arch }}/garage
+  https://garagehq.deuxfleurs.fr/_releases/{{ garage_node_prereleases[garage_node_version | default('')]
+  | default(garage_node_version | default('')) }}/{{ garage_node_arch }}/garage
 garage_node_fetch: target
 garage_node_cache_dir: "~/.cache/eyebrowkang.garage"
 garage_node_admin_token: ""

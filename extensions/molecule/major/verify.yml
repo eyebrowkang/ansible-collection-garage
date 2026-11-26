@@ -1,0 +1,59 @@
+---
+# Every node runs v3 with its identity, the layout and the bucket are there, the snapshot
+# was taken, and the cluster is healthy.
+- name: Verify
+  hosts: all
+  become: true
+  vars:
+    garage: [/usr/local/bin/garage, --config, /etc/garage/garage.toml]
+  tasks:
+    - name: Ask the binary for its version
+      ansible.builtin.command: /usr/local/bin/garage --version
+      register: verify_version
+      changed_when: false
+
+    - name: Check the version (a pre-release reports its commit)
+      vars:
+        prereleases:
+          v3.0.0-beta1: 0ed12c39962dd0d8481f5d9152663631cc20f4bb
+      ansible.builtin.assert:
+        that: (verify_version.stdout | eyebrowkang.garage.garage_version(prereleases)) == major_to
+
+    - name: Read the node's ID before the upgrade
+      ansible.builtin.slurp:
+        src: /root/major-node-id
+      register: verify_id_before
+
+    - name: Ask the node for its ID, the cluster's status and health, and the bucket
+      ansible.builtin.command:
+        argv: "{{ garage + item }}"
+      loop:
+        - [node, id, -q]
+        - [json-api, GetClusterStatus]
+        - [json-api, GetClusterHealth]
+        - [json-api, GetBucketInfo, '{"globalAlias": "major-probe"}']
+      register: verify_api
+      changed_when: false
+
+    - name: Check the node kept its identity, the layout and the bucket, and the cluster is healthy
+      vars:
+        status: "{{ verify_api.results[1].stdout | from_json }}"
+        health: "{{ verify_api.results[2].stdout | from_json }}"
+      ansible.builtin.assert:
+        that:
+          - (verify_api.results[0].stdout | eyebrowkang.garage.garage_node_id) == (verify_id_before.content | b64decode | trim)
+          - status.layoutVersion == 1
+          - status.nodes | selectattr('isUp') | list | length == 4
+          - health.status == 'healthy'
+          - (verify_api.results[3].stdout | from_json).globalAliases == ['major-probe']
+        fail_msg: "{{ status | to_json }} {{ health | to_json }}"
+
+    - name: Look for the snapshot taken before the upgrade
+      ansible.builtin.find:
+        paths: /var/lib/garage/meta/snapshots
+        file_type: any
+      register: verify_snapshots
+
+    - name: Check there is one
+      ansible.builtin.assert:
+        that: verify_snapshots.matched > 0

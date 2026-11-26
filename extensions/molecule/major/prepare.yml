@@ -1,0 +1,44 @@
+---
+# A v2 cluster deployed with the collection, a bucket in it, and each node's ID recorded.
+- name: Deploy the v2 cluster
+  hosts: all
+  become: true
+  roles:
+    - role: eyebrowkang.garage.node
+      vars:
+        garage_node_version: "{{ major_from }}"
+    - role: eyebrowkang.garage.cluster
+  tasks:
+    - name: Ask the node for its ID
+      ansible.builtin.command: /usr/local/bin/garage --config /etc/garage/garage.toml node id -q
+      register: prepare_node_id
+      changed_when: false
+
+    - name: Record the node's ID
+      ansible.builtin.copy:
+        content: "{{ prepare_node_id.stdout | eyebrowkang.garage.garage_node_id }}\n"
+        dest: /root/major-node-id
+        mode: "0600"
+
+    - name: Create a bucket
+      ansible.builtin.command:
+        argv: [/usr/local/bin/garage, --config, /etc/garage/garage.toml, json-api, CreateBucket, '{"globalAlias": "major-probe"}']
+      changed_when: true
+      run_once: true
+
+# A run interrupted after it replaced the binary and before it restarted: the first node has
+# v3 on disk and still runs v2. The upgrade must still be a major upgrade, run with the
+# running node's own binary.
+- name: Leave the first node half-upgraded
+  hosts: garage-major-1
+  become: true
+  tasks:
+    - name: Put the v3 binary in place without restarting
+      ansible.builtin.get_url:
+        url: https://garagehq.deuxfleurs.fr/_releases/0ed12c39962dd0d8481f5d9152663631cc20f4bb/x86_64-unknown-linux-musl/garage
+        checksum: sha256:c6e322fa2dc464dc1b78abad55e951f8a55b1a6e3a54888b9b25c55dd034fbe9
+        dest: /usr/local/bin/garage
+        mode: "0755"
+        force: true
+      retries: 3
+      delay: 10

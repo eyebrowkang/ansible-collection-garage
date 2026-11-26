@@ -83,6 +83,6 @@
       {{ 'This node has the same ID as another host of the play: its metadata directory was'
          ~ ' copied from another node, so Garage sees one node.'
          if ids | select('equalto', garage_cluster_node_id) | list | length > 1
-         else 'This node doesn\'t know its RPC address: set rpc_public_addr in'
+         else "This node doesn't know its RPC address: set rpc_public_addr in"
               ~ ' garage_node_settings.' }}
     quiet: true

@@ -30,14 +30,22 @@ _BARE_KEY_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 # ---- versions ----------------------------------------------------------------------------
 
 
-def parse_version(text):
+def parse_version(text, prereleases=None):
     """The version in `garage --version` output ("garage v2.6.0 [features: ...]"), as
-    "v2.6.0" or "v3.0.0-beta1"; None when there is none."""
+    "v2.6.0" or "v3.0.0-beta1"; None when there is none.
+
+    A pre-release built from a commit reports the commit instead of a version:
+    prereleases ({version: commit}) names it.
+    """
     match = _VERSION_RE.search(text or "")
-    if not match:
-        return None
-    major, minor, patch, pre = match.groups()
-    return "v%s.%s.%s%s" % (major, minor, patch, "-" + pre if pre else "")
+    if match:
+        major_, minor, patch, pre = match.groups()
+        return "v%s.%s.%s%s" % (major_, minor, patch, "-" + pre if pre else "")
+    commits = {commit: version for version, commit in (prereleases or {}).items()}
+    for word in re.findall(r"\b[0-9a-f]{40}\b", text or ""):
+        if word in commits:
+            return commits[word]
+    return None
 
 
 def version_key(version):
@@ -257,14 +265,18 @@ def _data_dir_problems(value):
     return ["garage_node_settings.data_dir must be a path or a list of tables with a path."]
 
 
-def changed_identity_dirs(existing, settings):
-    """The identity directories that differ from an existing garage.toml's ('metadata_dir',
-    'data_dir'): changing them on a node with data would start an empty node."""
+def changed_identity(existing, settings):
+    """What of a node's identity and data differs from an existing garage.toml:
+    'metadata_dir', 'data_dir', 'db_engine'. Changing them on a node with data would start
+    an empty node (a new metadata database needs `garage node convert-db` first)."""
     changed = []
     if existing.get("metadata_dir") != settings.get("metadata_dir"):
         changed.append("metadata_dir")
     if sorted(data_dirs(existing)) != sorted(data_dirs(settings)):
         changed.append("data_dir")
+    # Garage's default engine is lmdb.
+    if existing.get("db_engine", "lmdb") != settings.get("db_engine", "lmdb"):
+        changed.append("db_engine")
     return changed
 
 

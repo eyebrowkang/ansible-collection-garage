@@ -1,0 +1,15 @@
+---
+# Before a major upgrade, with the running node's own binary (the new one can't talk to the
+# running nodes): Garage's own steps - check the tables, then a snapshot of every node's metadata
+# (docs/design.md, "Major upgrades").
+- name: Repair the tables on every node
+  ansible.builtin.command:
+    argv: "{{ garage_node_cli + ['repair', '--all-nodes', '--yes', 'tables'] }}"
+  changed_when: true
+  run_once: true
+
+- name: Take a snapshot of every node's metadata
+  ansible.builtin.command:
+    argv: "{{ garage_node_cli + ['meta', 'snapshot', '--all'] }}"
+  changed_when: true
+  run_once: true

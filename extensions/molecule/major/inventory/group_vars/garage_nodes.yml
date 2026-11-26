@@ -1,0 +1,12 @@
+---
+# The cluster's test variables. prepare installs major_from; converge goes to major_to.
+major_from: v2.6.0
+major_to: v3.0.0-beta1
+garage_node_version: "{{ major_to }}"
+garage_node_major_upgrade: true
+# A fixed test-only secret (openssl rand -hex 32); never use it outside molecule.
+garage_node_rpc_secret: 2c8e5b7a9d1f3e6c0b4a8d2f7e1c5b9a3d6f0e4c8b2a7d1f5e9c3b6a0d4f8e2c
+garage_node_settings:
+  metadata_dir: /var/lib/garage/meta
+  data_dir: /var/lib/garage/data
+  replication_factor: 3

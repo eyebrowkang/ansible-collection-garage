@@ -36,7 +36,7 @@ do: [docs/design.md](../../docs/design.md).
 | `garage_node_fetch` | `target` | Who downloads the binary: the host (`target`), or the controller (`controller`), which copies it over. |
 | `garage_node_cache_dir` | `~/.cache/eyebrowkang.garage` | The controller's download cache, with `garage_node_fetch: controller`. |
 | `garage_node_systemd_override` | `""` | A drop-in for `garage.service`, in systemd's own syntax. |
-| `garage_node_major_upgrade` | `false` | Allows `garage_node_version` to cross a major version, which stops every node of the cluster at once. Not implemented yet. |
+| `garage_node_major_upgrade` | `false` | Allows `garage_node_version` to cross a major version, which stops every node of the cluster at once: see [docs/design.md](../../docs/design.md), "Major upgrades". |
 
 ## Settings
 

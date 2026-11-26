@@ -10,6 +10,12 @@
 - name: Install, configure and start the node
   when: garage_node_state == 'present'
   block:
+    - name: Prepare the major upgrade
+      ansible.builtin.include_tasks: major_prepare.yml
+      when:
+        - garage_node_major | bool
+        - not ansible_check_mode
+
     - name: Install the binary
       ansible.builtin.include_tasks: binary.yml
 

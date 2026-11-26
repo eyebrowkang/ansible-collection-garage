@@ -1,0 +1,7 @@
+---
+# The test variables (inventory/group_vars/) ask for v3 and allow the major upgrade.
+- name: Converge
+  hosts: all
+  become: true
+  roles:
+    - role: eyebrowkang.garage.node

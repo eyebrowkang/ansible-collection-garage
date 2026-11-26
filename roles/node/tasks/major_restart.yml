@@ -1,0 +1,39 @@
+---
+# Every node stops, then every node starts on the new binary and configuration: the play runs
+# each task on every host before the next, so no node starts before every node stopped. Then
+# each must be back as healthy as before the upgrade (docs/design.md, "Major upgrades").
+- name: Report the major upgrade
+  ansible.builtin.debug:
+    msg: Every node would stop, then start on Garage {{ garage_node_version }}.
+  changed_when: true
+  when: ansible_check_mode
+
+# Any host's failure ends the play for every host: a node left on the old version while the
+# others restart would split the cluster.
+- name: Restart every node on the new major version
+  when: not ansible_check_mode
+  any_errors_fatal: true
+  block:
+    - name: Check every node of the play is still there
+      ansible.builtin.assert:
+        that: ansible_play_hosts | length == ansible_play_hosts_all | length
+        fail_msg: >-
+          {{ ansible_play_hosts_all | difference(ansible_play_hosts) | join(', ') }} failed
+          before the restart: no node stops, the cluster stays on the old version.
+        quiet: true
+      run_once: true
+
+    - name: Stop every node
+      ansible.builtin.systemd_service:
+        name: garage.service
+        state: stopped
+
+    - name: Start every node
+      ansible.builtin.systemd_service:
+        name: garage.service
+        state: started
+
+    - name: Wait for the cluster to be as healthy as before the upgrade
+      ansible.builtin.include_tasks: wait.yml
+      vars:
+        garage_node_target: "{{ inventory_hostname }}"
