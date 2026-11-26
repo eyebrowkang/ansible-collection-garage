@@ -7,12 +7,12 @@ help:
 	@echo "sanity    - ansible-test sanity (--venv, no docker)"
 	@echo "units     - ansible-test units (plugin unit tests, --venv)"
 	@echo "changelog - antsibull-changelog release (fold fragments; bump galaxy.yml first)"
-	@echo "test      - molecule test for the example role (docker)"
-	@echo "converge  - molecule converge (example role, docker)"
-	@echo "check     - molecule converge --check (dry-run, on converged instances; only if the example role is check-mode safe)"
-	@echo "destroy   - molecule destroy (example role, docker)"
-	@echo "test-vm    - molecule test (example role, vagrant; needs 'uv sync --group vagrant' + libvirt/KVM)"
-	@echo "destroy-vm - molecule destroy (example role, vagrant)"
+	@echo "test      - molecule test: one node (docker; MOLECULE_DISTRO and MOLECULE_IMAGE pick the distribution)"
+	@echo "converge  - molecule converge (one node, docker)"
+	@echo "check     - molecule converge --check (dry-run, on converged instances)"
+	@echo "destroy   - molecule destroy (one node, docker)"
+	@echo "test-vm    - molecule test (one node, vagrant; needs 'uv sync --group vagrant' + libvirt/KVM)"
+	@echo "destroy-vm - molecule destroy (one node, vagrant)"
 
 install:
 	uv sync
@@ -42,8 +42,8 @@ units:
 # antsibull-changelog lives in the opt-in `changelog` dependency-group (off the default sync).
 changelog:
 	uv run --group changelog antsibull-changelog release
-# The collection-level molecule scenario converges the example role by its short name
-# (.config/molecule/config.yml sets ANSIBLE_ROLES_PATH to roles/). Scenarios live under extensions/molecule/.
+# The scenarios live under extensions/molecule/; the default one is a node on the
+# distribution MOLECULE_DISTRO names (debian13 unless set).
 test:
 	uv run molecule test
 
@@ -51,7 +51,7 @@ converge:
 	uv run molecule converge
 
 # Dry-run: everything after `--` is passed through to ansible-playbook, so this previews
-# changes via check mode. Only meaningful if the example role is check-mode safe. On
+# changes via check mode. On
 # converged instances only: the scenario's create.yml and prepare.yml get --check too, and
 # molecule would record them as done. See docs/molecule-testing.md.
 check:
