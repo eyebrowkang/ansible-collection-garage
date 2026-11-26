@@ -20,8 +20,8 @@
 2. `eyebrowkang.garage` role 的用户能接管 role 部署的集群，然后升级它，包括从 Garage v2 升级到 v3。
 3. 用户能从主机上移除 Garage。（1.0 可选。）
 
-**它管理**主机上 Garage 这一侧：二进制、用户、systemd unit、配置及其密钥（`install`、`config`）；以及
-让一组节点第一次成为一个集群的步骤：互相连接、应用首个 layout（`cluster`）。
+**它管理**每台主机上的一个 Garage 节点：二进制、用户、systemd unit、配置及其密钥，以及它们的升级
+（`node`）；以及让一组节点第一次成为一个集群的步骤：互相连接、应用首个 layout（`cluster`）。
 
 **它不管理**集群里面的内容（bucket、key、通过 API 创建的 admin token）、首个之后的任何 layout 变更，以及
 主机要自备的东西（systemd、磁盘和挂载、防火墙、反向代理、TLS）。
@@ -39,16 +39,16 @@ Garage v3 正式发布时，collection 发布 1.0，并且 1.0 能把集群从 v
    - Garage 既不发布签名，也不发布 checksum。collection 自带每个受支持版本、每种架构的 SHA256，在加入该
      版本时实测得到。这就是信任根，由 collection 固定，作用相当于签名密钥。
    - 主机在替换任何东西之前校验下载的文件。下载服务器、镜像和控制端的缓存都不被信任。
-   - collection 不认识的版本会被拒绝，除非用户提供它的 checksum（`garage_install_checksum`）：这仍然是
+   - collection 不认识的版本会被拒绝，除非用户提供它的 checksum（`garage_node_checksum`）：这仍然是
      校验过的二进制，并且能衔接 Garage 发布新版本与 collection 发布新版本之间的空档。
 3. **使用 Garage 自己的配置格式。**
-   - `garage_config_settings` 就是 `garage.toml`，以 YAML 书写，由 role 写成 TOML。
+   - `garage_node_settings` 就是 `garage.toml`，以 YAML 书写，由 role 写成 TOML。
    - 它合并在 role 的少数默认值之上，即 role 原来的值：各监听地址和 S3 region。没人设置的选项不写入，
      即使用 Garage 自己的默认值。
    - `replication_factor` 没有默认值：role 原来的 1 对集群是错误的。
    - `rpc_public_addr` 没有默认值，和 Garage 一致，由它自动检测。
-   - 密钥是唯一的例外：`garage_config_rpc_secret`、`garage_config_admin_token` 和
-     `garage_config_metrics_token` 各自写入单独的文件，`garage.toml` 引用它们（`rpc_secret_file` 等）。
+   - 密钥是唯一的例外：`garage_node_rpc_secret`、`garage_node_admin_token` 和
+     `garage_node_metrics_token` 各自写入单独的文件，`garage.toml` 引用它们（`rpc_secret_file` 等）。
 4. **集群保持可用，除非 Garage 本身要求停机。**
    - 需要重启的变更（同一大版本的二进制、配置、密钥、unit）逐个重启节点，每个节点恢复健康后才停下一个。
    - 大版本升级是唯一的例外：不同大版本的 Garage 节点无法互相通信，所以所有节点先停止，再全部用新二进制
@@ -76,8 +76,8 @@ Garage v3 正式发布时，collection 发布 1.0，并且 1.0 能把集群从 v
 - 替换是原子的。
 - 拒绝降级：从 v2.5.0 起，Garage 的元数据无法回到旧版本。
 - 拒绝跳过大版本（v1 到 v3）：Garage 只支持相邻大版本之间的迁移。
-- 下载来自 Garage 的发布服务器，设置了 `garage_install_url` 时来自该地址（镜像不需要被信任）；由主机
-  下载，或者在 `garage_install_fetch: controller` 时由控制端下载再复制过去（用于无法访问互联网的主机）。
+- 下载来自 Garage 的发布服务器，设置了 `garage_node_url` 时来自该地址（镜像不需要被信任）；由主机
+  下载，或者在 `garage_node_fetch: controller` 时由控制端下载再复制过去（用于无法访问互联网的主机）。
 
 限制：
 
@@ -92,7 +92,7 @@ Garage v3 正式发布时，collection 发布 1.0，并且 1.0 能把集群从 v
 
 - 写入任何东西之前，role 检查它依赖的内容：`metadata_dir`、`data_dir`、`replication_factor`、
   `rpc_bind_addr` 和 `[admin]` 的 `api_bind_addr` 已设置；RPC 密钥是 32 字节的十六进制；需要比
-  `garage_install_version` 更新的 Garage 才支持的选项（例如 v2.5.0 之前的 `[s3_api] public_endpoint`）
+  `garage_node_version` 更新的 Garage 才支持的选项（例如 v2.5.0 之前的 `[s3_api] public_endpoint`）
   会被拒绝，因为旧版本会静默忽略它们。
 - `garage.toml` 和密钥文件属于 `root:garage`，权限 `0640`。
 - unit 的可写路径和依赖的挂载点跟随 `metadata_dir` 和 `data_dir`。
@@ -125,7 +125,7 @@ Garage v2 到 v3（以后的大版本同理）。步骤遵循 Garage 的
 
 保证：
 
-- 只有当 `garage_install_version` 跨越大版本，**并且** `garage_install_major_upgrade: true` 时，才会
+- 只有当 `garage_node_version` 跨越大版本，**并且** `garage_node_major_upgrade: true` 时，才会
   执行大版本升级。否则在任何改动之前就拒绝。
 - 改动之前先检查：集群的每个节点都在 play 中，没有被 `serial` 漏掉；所有节点运行同一版本；集群健康；
   没有节点使用 `db_engine = "fjall"`。
@@ -177,15 +177,14 @@ Garage v2 到 v3（以后的大版本同理）。步骤遵循 Garage 的
 限制：
 
 - 不支持 role 1.0 之前的版本部署的主机，或者手动部署的主机。
-- 自定义的 `garage_config_template` 需要手动转换为 `garage_config_settings`。
+- 自定义的 `garage_config_template` 需要手动转换为 `garage_node_settings`。
 
 ### 移除
 
 保证：
 
-- `config` 的 `absent` 停止并禁用 Garage，删除 `garage.toml` 和密钥文件。`install` 的 `absent` 删除
-  二进制、unit 和 `garage` 用户。
-- `config` 仍为 present 时，`install` 的 `absent` 会失败。
+- `node` 的 `absent` 停止并禁用 Garage，删除二进制、unit、`/etc/garage/`（`garage.toml` 和密钥文件）和
+  `garage` 用户。
 - `metadata_dir` 和 `data_dir` 保留。
 
 限制：
@@ -208,10 +207,10 @@ Garage v2 到 v3（以后的大版本同理）。步骤遵循 Garage 的
 
 - 固定的路径和名称：`/usr/local/bin/garage`、`/etc/garage/`（`garage.toml`、`secrets/`）、
   `garage.service`、`garage` 用户和用户组、`/var/lib/garage`。
-- `install` 拥有二进制、用户和 unit。它重新加载 systemd，并把运行中的节点重启到新二进制上。
-- `config` 拥有 `/etc/garage/`。它启动 Garage，并在有变更时重启它。
-- `cluster` 从运行中的节点读取节点身份。它从不重启节点。
-- 在同一个 play 中：先 `install`，再 `config`，最后 `cluster`。
+- 以上全部归 `node` 所有。一个节点是一个 role，因为它的二进制和配置一起变化：大版本升级要在同一次停机中
+  用新配置启动新二进制，一次运行也只为所有变更重启节点一次。
+- `cluster` 从运行中的节点读取节点身份。它从不重启节点，依赖 `node` role 的路径和一个运行中的节点。
+- 在同一个 play 中：先 `node`，再 `cluster`。
 
 改变其中任何一项都是破坏性变更（1.0 之后：主版本号升级）。
 

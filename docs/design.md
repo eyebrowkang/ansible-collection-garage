@@ -21,9 +21,9 @@ The first release is deliberately small. It is done when:
    then upgrade it, including from Garage v2 to v3.
 3. A user can remove Garage from a host. (Optional for 1.0.)
 
-**It manages** the Garage side of a host: the binary, its user, the systemd unit, the
-configuration and its secrets (`install`, `config`); and the steps that make a set of
-nodes one cluster the first time: connecting them and applying the first layout
+**It manages** a Garage node on each host: the binary, its user, the systemd unit, the
+configuration and its secrets, and their upgrades (`node`); and the steps that make a set
+of nodes one cluster the first time: connecting them and applying the first layout
 (`cluster`).
 
 **It doesn't manage** what lives inside the cluster (buckets, keys, admin tokens created
@@ -48,16 +48,16 @@ to v3. Before 1.0 it isn't published to Galaxy and isn't meant for production.
    - The host verifies the download before anything is replaced. The download server, a
      mirror and the controller's cache aren't trusted.
    - A version the collection doesn't know is refused, unless the user gives its checksum
-     (`garage_install_checksum`): that's still a verified binary, and it bridges a Garage
+     (`garage_node_checksum`): that's still a verified binary, and it bridges a Garage
      release and the next collection release.
 3. **Garage's own configuration format.**
-   - `garage_config_settings` is `garage.toml`, as YAML. The role writes it as TOML.
+   - `garage_node_settings` is `garage.toml`, as YAML. The role writes it as TOML.
    - It's merged over the role's few defaults, the role's former values: the bind addresses
      and the S3 region. A setting nobody sets isn't written: it's Garage's own default.
    - `replication_factor` has no default: the role's former 1 is wrong for a cluster.
    - `rpc_public_addr` has no default, as in Garage, which detects it.
-   - Secrets are the one exception: `garage_config_rpc_secret`, `garage_config_admin_token`
-     and `garage_config_metrics_token` are written to files of their own, and
+   - Secrets are the one exception: `garage_node_rpc_secret`, `garage_node_admin_token`
+     and `garage_node_metrics_token` are written to files of their own, and
      `garage.toml` points at them (`rpc_secret_file`, ...).
 4. **The cluster stays available, except when Garage itself requires otherwise.**
    - A change that needs a restart (a binary of the same major version, the configuration,
@@ -93,8 +93,8 @@ Guarantees:
   version.
 - Skipping a major version (v1 to v3) is refused: Garage only migrates between
   contiguous major versions.
-- The download comes from Garage's release server, from `garage_install_url` when set (a
-  mirror needs no trust), and is fetched by the host or, with `garage_install_fetch:
+- The download comes from Garage's release server, from `garage_node_url` when set (a
+  mirror needs no trust), and is fetched by the host or, with `garage_node_fetch:
   controller`, by the controller and copied over (hosts without internet access).
 
 Limits:
@@ -112,7 +112,7 @@ Guarantees:
 - Before anything is written, the role checks what it relies on: `metadata_dir`,
   `data_dir`, `replication_factor`, `rpc_bind_addr` and the `[admin]` `api_bind_addr` are
   set; the RPC secret is 32 bytes of hex; settings that need a newer Garage than
-  `garage_install_version` (such as `[s3_api] public_endpoint` before v2.5.0) are refused,
+  `garage_node_version` (such as `[s3_api] public_endpoint` before v2.5.0) are refused,
   because older releases silently ignore them.
 - `garage.toml` and the secret files are `root:garage`, mode `0640`.
 - The unit's writable paths and required mounts follow `metadata_dir` and `data_dir`.
@@ -148,8 +148,8 @@ Garage v2 to v3 (and later majors the same way). The steps follow Garage's
 
 Guarantees:
 
-- A major upgrade runs only when `garage_install_version` crosses a major version *and*
-  `garage_install_major_upgrade: true`. Otherwise it's refused before anything changes.
+- A major upgrade runs only when `garage_node_version` crosses a major version *and*
+  `garage_node_major_upgrade: true`. Otherwise it's refused before anything changes.
 - Before anything changes, it checks: every node of the cluster is in the play and none is
   left out by `serial`; every node runs the same version; the cluster is healthy; no node
   uses `db_engine = "fjall"`.
@@ -211,15 +211,14 @@ Guarantees:
 Limits:
 
 - Hosts deployed by the role before 1.0 of the role, or by hand, aren't supported.
-- A custom `garage_config_template` is translated by hand into `garage_config_settings`.
+- A custom `garage_config_template` is translated by hand into `garage_node_settings`.
 
 ### Removal
 
 Guarantees:
 
-- `config` with `absent` stops and disables Garage, and removes `garage.toml` and the secret
-  files. `install` with `absent` removes the binary, the unit and the `garage` user.
-- `install` with `absent` fails while `config` is still present.
+- `node` with `absent` stops and disables Garage, and removes the binary, the unit,
+  `/etc/garage/` (`garage.toml` and the secret files) and the `garage` user.
 - `metadata_dir` and `data_dir` stay.
 
 Limits:
@@ -245,11 +244,12 @@ Limits:
 
 - Fixed paths and names: `/usr/local/bin/garage`, `/etc/garage/` (`garage.toml`,
   `secrets/`), `garage.service`, the `garage` user and group, `/var/lib/garage`.
-- `install` owns the binary, the user and the unit. It reloads systemd. It restarts a
-  running node onto a new binary.
-- `config` owns `/etc/garage/`. It starts Garage, and restarts it on a change.
-- `cluster` reads the node identities from the running nodes. It never restarts them.
-- In one play: `install`, then `config`, then `cluster`.
+- `node` owns all of them. A node is one role because its binary and its configuration
+  change together: a major upgrade starts the new binary on the new configuration in the
+  same downtime, and a run restarts a node once for all its changes.
+- `cluster` reads the node identities from the running nodes. It never restarts them, and
+  needs the `node` role's paths and a running node.
+- In one play: `node`, then `cluster`.
 
 Changing any of them is a breaking change (after 1.0: a major version).
 
