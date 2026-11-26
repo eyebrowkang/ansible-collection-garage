@@ -41,12 +41,15 @@
   ansible.builtin.assert:
     that:
       - garage_node_existing_unit is search('(?m)^User=' ~ garage_node_user ~ '$')
+      - garage_node_existing_unit is search('(?m)^Group=' ~ garage_node_group ~ '$')
+      - garage_node_existing_unit is search('(?m)^WorkingDirectory=' ~ (garage_node_home | regex_escape) ~ '$')
       - garage_node_existing_unit is search('--config ' ~ (garage_node_config_path | regex_escape) ~ '( |$)')
     fail_msg: >-
-      {{ garage_node_unit_path }} doesn't run Garage as the {{ garage_node_user }} user with
-      {{ garage_node_config_path }}: this node was deployed with other paths or names (such
-      as the eyebrowkang.garage role's garage_user or garage_config_dir changed from their
-      defaults), which the collection can't take over.
+      {{ garage_node_unit_path }} doesn't run Garage as {{ garage_node_user }}:{{ garage_node_group }}
+      in {{ garage_node_home }} with {{ garage_node_config_path }}: this node was deployed with
+      other paths or names (the eyebrowkang.garage role's garage_user, garage_group,
+      garage_home or garage_config_dir changed from their defaults), which the collection
+      can't take over.
     quiet: true
   when: garage_node_existing_unit | length > 0
 
